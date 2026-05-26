@@ -18,6 +18,25 @@ else()
 endif()
 
 # ==============================================================================
+# Twitch & TransCipher Credentials (Git-ignored configuration)
+# ==============================================================================
+if(NOT DEFINED TWITCH_DEFAULT_CLIENT_ID)
+    set(TWITCH_DEFAULT_CLIENT_ID "gp762nuuoqcoxypju8c569th9wz7q5") # Default fallback Client ID
+endif()
+
+if(NOT DEFINED TWITCH_DEFAULT_CLIENT_SECRET)
+    set(TWITCH_DEFAULT_CLIENT_SECRET "")
+endif()
+
+if(NOT DEFINED TRANSCIPHER_BUILD_SECRET)
+    set(TRANSCIPHER_BUILD_SECRET "BLUE000_BUILD_SECRET_KEY")
+endif()
+
+if(NOT DEFINED TRANSCIPHER_TOKEN_ISSUER_URL)
+    set(TRANSCIPHER_TOKEN_ISSUER_URL "https://streamers-tool.sakura.ne.jp/TransCipher/index.php")
+endif()
+
+# ==============================================================================
 # Qt6 Settings
 # ==============================================================================
 set(CMAKE_AUTOMOC ON)
@@ -62,9 +81,13 @@ else()
     add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 endif()
 
-# Pass CMake managed version to C++ compile definitions
+# Pass CMake managed version and Twitch/TransCipher credentials to C++ compile definitions
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     APP_VERSION_STRING="${PROJECT_VERSION}"
+    TWITCH_DEFAULT_CLIENT_ID="${TWITCH_DEFAULT_CLIENT_ID}"
+    TWITCH_DEFAULT_CLIENT_SECRET="${TWITCH_DEFAULT_CLIENT_SECRET}"
+    TRANSCIPHER_BUILD_SECRET="${TRANSCIPHER_BUILD_SECRET}"
+    TRANSCIPHER_TOKEN_ISSUER_URL="${TRANSCIPHER_TOKEN_ISSUER_URL}"
 )
 
 # Link Qt libraries and TransCipher Import Library (.dll.a for MinGW)
@@ -115,9 +138,13 @@ set(TEST_SOURCES
 
 add_executable(TwitchFollowerCheckerTest ${TEST_SOURCES})
 
-# Pass CMake managed version to Test C++ compile definitions
+# Pass CMake managed version and Twitch/TransCipher credentials to Test C++ compile definitions
 target_compile_definitions(TwitchFollowerCheckerTest PRIVATE
     APP_VERSION_STRING="${PROJECT_VERSION}"
+    TWITCH_DEFAULT_CLIENT_ID="${TWITCH_DEFAULT_CLIENT_ID}"
+    TWITCH_DEFAULT_CLIENT_SECRET="${TWITCH_DEFAULT_CLIENT_SECRET}"
+    TRANSCIPHER_BUILD_SECRET="${TRANSCIPHER_BUILD_SECRET}"
+    TRANSCIPHER_TOKEN_ISSUER_URL="${TRANSCIPHER_TOKEN_ISSUER_URL}"
 )
 
 target_include_directories(TwitchFollowerCheckerTest PRIVATE 

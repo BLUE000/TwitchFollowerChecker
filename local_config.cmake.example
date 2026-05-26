@@ -20,9 +20,11 @@
 
 
 # ==============================================================================
-# 2. Custom Environment Variables (Optional)
+# 2. Twitch Credentials & Sakura Server Obfuscation Settings (Optional)
 # ==============================================================================
-# You can set local environment variables or paths needed for build or execution here.
-# Example:
-# set(ENV{TWITCH_CLIENT_ID} "your_client_id_here")
-# set(ENV{TWITCH_CLIENT_SECRET} "your_client_secret_here")
+# Set your private credentials here. This file is git-ignored and safe.
+#
+# set(TWITCH_DEFAULT_CLIENT_ID "your_twitch_client_id_here" CACHE STRING "")
+# set(TWITCH_DEFAULT_CLIENT_SECRET "your_twitch_client_secret_here" CACHE STRING "")
+# set(TRANSCIPHER_BUILD_SECRET "your_sakura_build_secret_key_here" CACHE STRING "")
+# set(TRANSCIPHER_TOKEN_ISSUER_URL "https://your-server.sakura.ne.jp/TransCipher/index.php" CACHE STRING "")
