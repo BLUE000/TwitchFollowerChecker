@@ -57,3 +57,7 @@ compile_commands.json
 .env.*
 .vscode/
 .vs/
+
+# Private security documentation
+/doc/security_architecture.md
+
