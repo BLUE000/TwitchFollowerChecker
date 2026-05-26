@@ -123,29 +123,33 @@ void TwitchAuth::startAuthFlow() {
         return;
     }
 
-    // 1. ローカルサーバー(Port 8080)の起動
+    // 1. ローカルサーバー(Port 38080)の起動
     if (!m_tcpServer) {
         m_tcpServer = new QTcpServer(this);
         connect(m_tcpServer, &QTcpServer::newConnection, this, &TwitchAuth::handleNewConnection);
     }
     
     if (!m_tcpServer->isListening()) {
-        if (!m_tcpServer->listen(QHostAddress::LocalHost, 8080)) {
-            Logger::logError("Failed to start local redirect server on port 8080.");
+        if (!m_tcpServer->listen(QHostAddress::LocalHost, 38080)) {
+            Logger::logError("Failed to start local redirect server on port 38080.");
             emit authFailed("Local server start failure.");
             return;
         }
-        Logger::logInfo("Local redirect server listening on http://localhost:8080");
+        Logger::logInfo("Local redirect server listening on http://localhost:38080");
     }
 
     // 2. ブラウザでTwitch認可画面を開く
     // ※今回はサンプルとして、BLUE000様のClient IDがあればそれを使う。設定されていない場合はデフォルトを使用。
     // 通常のTwitch OAuth Implicit Grantフロー
+    #ifdef TWITCH_DEFAULT_CLIENT_ID
+    QString clientId = TWITCH_DEFAULT_CLIENT_ID;
+    #else
     QString clientId = "gp762nuuoqcoxypju8c569th9wz7q5"; // デフォルト Client ID (例)
+    #endif
     
     QString authUrl = QString("https://id.twitch.tv/oauth2/authorize"
                               "?client_id=%1"
-                              "&redirect_uri=http://localhost:8080"
+                              "&redirect_uri=http://localhost:38080"
                               "&response_type=token"
                               "&scope=user:read:follows+moderator:read:followers")
                       .arg(clientId);
