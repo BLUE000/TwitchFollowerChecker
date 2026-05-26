@@ -6,6 +6,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ==============================================================================
+# Compiler Options
+# ==============================================================================
+# Force MSVC to interpret source files as UTF-8 (prevents mojibake with Japanese comments)
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
+# ==============================================================================
 # Local Configuration Loading
 # ==============================================================================
 # Load local configuration (local Qt paths, specific build options, etc.)

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <QCoreApplication>
+#include <QUrlQuery>
 #include "../followermodel.h"
 #include "../twitchapiclient.h"
 #include "../logger.h"
@@ -17,8 +18,8 @@ TEST(SecuritySanitizerTest, RemoveNullBytesAndTrim) {
     EXPECT_EQ(cleanStr1.length(), 15);
 
     // UT-SAN-02: 中間の複数ヌル文字の除去
-    QByteArray rawData2 = "token\0extra\0data";
-    QString cleanStr2 = QString::fromLocal8Bit(rawData2.data(), rawData2.size());
+    QByteArray rawData2("token\0extra\0data", 16);
+    QString cleanStr2 = QString::fromUtf8(rawData2.constData(), rawData2.size());
     cleanStr2.remove(QChar('\0'));
     cleanStr2 = cleanStr2.trimmed();
     EXPECT_EQ(cleanStr2, "tokenextradata");
@@ -124,21 +125,40 @@ TEST(FollowerModelTest, ModelDataMapping) {
     EXPECT_EQ(model.columnCount(), 5);
 
     // QModelIndex を使った各カラム値の取り出し検証
-    QModelIndex indexLogin = model.index(0, 0);
-    QModelIndex indexDisplay = model.index(0, 1);
+    // カラム順: col0=表示名, col1=ログイン名, col2=関係, col3=フォロー開始日, col4=URL
+    QModelIndex indexDisplay = model.index(0, 0);
+    QModelIndex indexLogin   = model.index(0, 1);
     QModelIndex indexRelation = model.index(0, 2);
-    QModelIndex indexDate = model.index(0, 3);
-    QModelIndex indexUrl = model.index(0, 4);
+    QModelIndex indexDate    = model.index(0, 3);
+    QModelIndex indexUrl     = model.index(0, 4);
 
-    EXPECT_EQ(model.data(indexLogin).toString(), "UserB");
     EXPECT_EQ(model.data(indexDisplay).toString(), "ユーザーB");
+    EXPECT_EQ(model.data(indexLogin).toString(), "UserB");
     EXPECT_EQ(model.data(indexRelation).toString(), "相互");
     EXPECT_EQ(model.data(indexDate).toString(), "2026-05-26 21:00:00");
     EXPECT_EQ(model.data(indexUrl).toString(), "https://twitch.tv/UserB");
 }
 
 // ==============================================================================
-// 5. テストメインエントリー
+// 5. OAuth パラメータ解析（?記号除去）の単体テスト [UT-AUTH-01]
+// ==============================================================================
+TEST(OAuthParserTest, ParseTokenWithLeadingQuestionMark) {
+    QString rawPath = "/token?access_token=my_test_oauth_token&scope=user:read";
+    
+    // 実際のプログラムと同じ抽出ロジックの動作検証
+    QString queryStr = rawPath.mid(6);
+    if (queryStr.startsWith('?')) {
+        queryStr = queryStr.mid(1);
+    }
+    
+    QUrlQuery query(queryStr);
+    QString token = query.queryItemValue("access_token");
+    
+    EXPECT_EQ(token, "my_test_oauth_token");
+}
+
+// ==============================================================================
+// 6. テストメインエントリー
 // ==============================================================================
 int main(int argc, char *argv[]) {
     // Qtの文字列変換やクラスが正しく動くようにQCoreApplicationを初期化する

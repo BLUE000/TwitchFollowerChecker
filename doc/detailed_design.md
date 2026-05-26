@@ -350,12 +350,16 @@ public:
 
         if (role == Qt::DisplayRole) {
             switch (index.column()) {
-                case 0: return item.loginName;
-                case 1: return item.displayName;
+                case 0: return item.displayName; // 表示名（先頭に表示）
+                case 1: return item.loginName;   // ログイン名
                 case 2: return item.relationship;
                 case 3: return item.followedAt.toString("yyyy-MM-dd hh:mm:ss");
                 case 4: return item.channelUrl;
             }
+        }
+        // URLカラムはリンク色（青）で表示
+        if (role == Qt::ForegroundRole && index.column() == 4) {
+            return QColor("#5B9EFF");
         }
         return QVariant();
     }
@@ -363,8 +367,8 @@ public:
     QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override {
         if (role != Qt::DisplayRole || orientation != Qt::Horizontal) return QVariant();
         switch (section) {
-            case 0: return "ログイン名";
-            case 1: return "表示名";
+            case 0: return "表示名"; // カラム順: 表示名→ログイン名→関係→フォロー開始日→URL
+            case 1: return "ログイン名";
             case 2: return "関係";
             case 3: return "フォロー開始日";
             case 4: return "チャンネルURL";

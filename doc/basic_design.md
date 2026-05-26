@@ -89,9 +89,10 @@ namespace UIConstants {
 * **データ構造（復号時）**:
 ```json
 {
-  "get_following": true,
-  "get_followers": true,
-  "compare_lists": true,
+  "show_all": false,
+  "show_mutual": true,
+  "show_following_only": true,
+  "show_followers_only": false,
   "custom_client_id": "",
   "custom_client_secret": "",
   "custom_text_color": "#E1E1E6",

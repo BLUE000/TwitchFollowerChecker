@@ -31,8 +31,8 @@ QVariant FollowerModel::data(const QModelIndex& index, int role) const {
 
     if (role == Qt::DisplayRole) {
         switch (index.column()) {
-            case 0: return item.loginName;
-            case 1: return item.displayName;
+            case 0: return item.displayName;
+            case 1: return item.loginName;
             case 2: return item.relationship;
             case 3: 
                 if (item.followedAt.isValid()) {
@@ -42,6 +42,12 @@ QVariant FollowerModel::data(const QModelIndex& index, int role) const {
             case 4: return item.channelUrl;
         }
     }
+
+    // URLカラム（4列目）をリンク色（青）で表示
+    if (role == Qt::ForegroundRole && index.column() == 4) {
+        return QColor("#5B9EFF");
+    }
+
     return QVariant();
 }
 
@@ -51,8 +57,8 @@ QVariant FollowerModel::headerData(int section, Qt::Orientation orientation, int
     }
 
     switch (section) {
-        case 0: return "ログイン名";
-        case 1: return "表示名";
+        case 0: return "表示名";
+        case 1: return "ログイン名";
         case 2: return "関係";
         case 3: return "フォロー開始日";
         case 4: return "チャンネルURL";

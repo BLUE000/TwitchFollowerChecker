@@ -20,9 +20,10 @@ bool ConfigManager::load() {
     if (!file.exists()) {
         Logger::logInfo("Config file config.tcf not found. Initializing with default settings.");
         // 初期値の格納
-        m_settings["get_following"] = true;
-        m_settings["get_followers"] = true;
-        m_settings["compare_lists"] = true;
+        m_settings["show_all"] = true;
+        m_settings["show_mutual"] = true;
+        m_settings["show_following_only"] = true;
+        m_settings["show_followers_only"] = true;
         m_settings["custom_text_color"] = "#E1E1E6";
         m_settings["background_image_path"] = "";
         m_settings["custom_font"] = "";

@@ -186,7 +186,11 @@ void TwitchAuth::handleNewConnection() {
 
         if (path.startsWith("/token")) {
             // JSリダイレクトからトークンが渡ってきた場合
-            QUrlQuery query(path.mid(6)); // "/token?" の後を解析
+            QString queryStr = path.mid(6);
+            if (queryStr.startsWith('?')) {
+                queryStr = queryStr.mid(1);
+            }
+            QUrlQuery query(queryStr);
             QString token = query.queryItemValue("access_token");
             
             // ヌル文字が混入していた場合は即座に除去（安全対策の徹底）
@@ -194,10 +198,18 @@ void TwitchAuth::handleNewConnection() {
             token = token.trimmed();
 
             if (!token.isEmpty()) {
+                if (m_accessToken == token) {
+                    return; // 既に同じトークンで処理済みの場合は無視
+                }
                 m_accessToken = token;
                 responseBody = "<html><body><h2>ログインに成功しました！</h2><p>このウィンドウを閉じてアプリケーションに戻ってください。</p></body></html>";
                 Logger::logInfo("OAuth Access Token successfully retrieved via loopback server.");
                 emit authSuccess(m_accessToken);
+                
+                // 重複したリクエストを物理的に遮断するため、待受サーバーを即座に閉じる
+                if (m_tcpServer) {
+                    m_tcpServer->close();
+                }
             } else {
                 responseBody = "<html><body><h2>ログイン失敗</h2><p>アクセストークンが空でした。</p></body></html>";
                 emit authFailed("Empty access token.");

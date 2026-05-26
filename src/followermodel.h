@@ -4,6 +4,7 @@
 #include <QAbstractTableModel>
 #include <QList>
 #include <QDateTime>
+#include <QColor>
 
 /**
  * @brief フォロワー情報を保持する構造体

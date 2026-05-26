@@ -3,8 +3,10 @@
 
 #include <QMainWindow>
 #include <QTabWidget>
+#include <QTabBar>
 #include <QTableView>
 #include <QSortFilterProxyModel>
+#include <QLabel>
 #include "configmanager.h"
 #include "followermodel.h"
 #include "twitchauth.h"
@@ -67,6 +69,12 @@ private slots:
      */
     void onSubTabChanged(int index);
 
+    /**
+     * @brief テーブルのセルがクリックされた際に、URLカラムであればブラウザを起動するスロット
+     * @param index クリックされたセルのインデックス
+     */
+    void onTableCellClicked(const QModelIndex& index);
+
 private:
     /**
      * @brief UIコントロール群の初期組み立てとレイアウト構築
@@ -88,6 +96,24 @@ private:
      */
     void saveUiToSettings();
 
+    /**
+     * @brief 設定のON/OFFに基づいて、フォロワーチェッカー画面のサブタブの表示状態を更新する
+     */
+    void updateSubTabsVisibility();
+
+    /**
+     * @brief 各サブタブに表示件数を付加したラベルで更新する
+     */
+    void updateSubTabCounts();
+
+    /**
+     * @brief ステータスバー右側のインフォラベルに一時メッセージを表示する
+     *        改ざん防止用の左側メッセージは上書きしない
+     * @param message 表示するメッセージ
+     * @param durationMs 表示持続時間(ミリ秒)。0 の場合は消去しない
+     */
+    void showStatusInfo(const QString& message, int durationMs = 5000);
+
     Ui::MainWindow *ui;                 ///< UIデザイナー用ポインタ
     ConfigManager* m_config;            ///< 設定マネージャー
     TwitchAuth* m_auth;                 ///< Twitch認証マネージャー
@@ -99,8 +125,9 @@ private:
 
     // UIコンポーネントの直接参照用ポインタ
     QTabWidget* m_mainTabWidget;
-    QTabWidget* m_subTabWidget;
+    QTabBar* m_subTabWidget;
     QTableView* m_tableView;
+    QLabel* m_statusInfoLabel;          ///< ステータスバー右側の通知ラベル（改ざん表示を上書きしない）
 
     QString m_twitchToken;              ///< メモリ保持されるTwitchアクセストークン
 };

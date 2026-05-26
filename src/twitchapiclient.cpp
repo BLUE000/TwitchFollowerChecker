@@ -1,5 +1,6 @@
 #include "twitchapiclient.h"
 #include "logger.h"
+#include "configmanager.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -85,12 +86,26 @@ void TwitchApiClient::loadStubData() {
     m_stubFollowersList.append(d_f);
 }
 
+static QString getResolvedClientId() {
+    ConfigManager config("config");
+    config.load();
+    QString clientId = config.get("custom_client_id", "").toString();
+    if (clientId.isEmpty()) {
+        #ifdef TWITCH_DEFAULT_CLIENT_ID
+        clientId = TWITCH_DEFAULT_CLIENT_ID;
+        #else
+        clientId = "gp762nuuoqcoxypju8c569th9wz7q5";
+        #endif
+    }
+    return clientId;
+}
+
 QString TwitchApiClient::fetchCurrentUserId(const QString& token) {
     if (m_isStubMode) return "MOCK_USER_ID_12345";
 
     QNetworkRequest request(QUrl("https://api.twitch.tv/helix/users"));
     request.setRawHeader("Authorization", QString("Bearer %1").arg(token).toUtf8());
-    request.setRawHeader("Client-Id", "gp762nuuoqcoxypju8c569th9wz7q5");
+    request.setRawHeader("Client-Id", getResolvedClientId().toUtf8());
 
     QNetworkReply* reply = m_networkManager.get(request);
     QEventLoop loop;
@@ -132,7 +147,7 @@ QList<FollowerItem> TwitchApiClient::fetchFollowing(const QString& token) {
 
         QNetworkRequest request((QUrl(urlStr)));
         request.setRawHeader("Authorization", QString("Bearer %1").arg(token).toUtf8());
-        request.setRawHeader("Client-Id", "gp762nuuoqcoxypju8c569th9wz7q5");
+        request.setRawHeader("Client-Id", getResolvedClientId().toUtf8());
 
         QNetworkReply* reply = m_networkManager.get(request);
         QEventLoop loop;
@@ -190,7 +205,7 @@ QList<FollowerItem> TwitchApiClient::fetchFollowers(const QString& token) {
 
         QNetworkRequest request((QUrl(urlStr)));
         request.setRawHeader("Authorization", QString("Bearer %1").arg(token).toUtf8());
-        request.setRawHeader("Client-Id", "gp762nuuoqcoxypju8c569th9wz7q5");
+        request.setRawHeader("Client-Id", getResolvedClientId().toUtf8());
 
         QNetworkReply* reply = m_networkManager.get(request);
         QEventLoop loop;

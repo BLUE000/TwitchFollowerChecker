@@ -14,6 +14,9 @@
 #include <QMessageBox>
 #include <QTextStream>
 #include <QHeaderView>
+#include <QDesktopServices>
+#include <QUrl>
+#include <QTimer>
 
 #ifndef APP_VERSION_STRING
 #define APP_VERSION_STRING "1.0.0"
@@ -40,9 +43,11 @@ namespace UIConstants {
 }
 
 // UI要素のポインタ定義（設定の読込・保存用）
-QCheckBox* chkFollowing = nullptr;
-QCheckBox* chkFollowers = nullptr;
-QCheckBox* chkCompare = nullptr;
+QCheckBox* chkShowAll = nullptr;
+QCheckBox* chkShowMutual = nullptr;
+QCheckBox* chkShowFollowingOnly = nullptr;
+QCheckBox* chkShowFollowersOnly = nullptr;
+QCheckBox* chkOverrideApi = nullptr;
 QLineEdit* txtClientId = nullptr;
 QLineEdit* txtClientSecret = nullptr;
 QLabel* lblAuthStatus = nullptr;
@@ -61,6 +66,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_mainTabWidget(nullptr)
     , m_subTabWidget(nullptr)
     , m_tableView(nullptr)
+    , m_statusInfoLabel(nullptr)
 {
     ui->setupUi(this);
 
@@ -71,7 +77,13 @@ MainWindow::MainWindow(QWidget *parent)
         statusBar()->setStyleSheet("color: #888888; background-color: #121214;");
     } else {
         setWindowTitle(QString("TwitchFollowerChecker - Ver %1").arg(APP_VERSION_STRING));
+        statusBar()->setStyleSheet("background-color: #121214;");
     }
+
+    // ステータスバー右側に通知用ラベルを追加（改ざん判定の左側メッセージを上書きしない）
+    m_statusInfoLabel = new QLabel(this);
+    m_statusInfoLabel->setStyleSheet("color: #55FF55; padding-right: 8px;");
+    statusBar()->addPermanentWidget(m_statusInfoLabel);
 
     resize(900, 650);
 
@@ -120,6 +132,7 @@ MainWindow::~MainWindow() {
 void MainWindow::setupUiManual() {
     // 中央ウィジェットの作成とレイアウト
     QWidget* centralWidget = new QWidget(this);
+    centralWidget->setObjectName("centralWidget");
     setCentralWidget(centralWidget);
     QVBoxLayout* mainLayout = new QVBoxLayout(centralWidget);
 
@@ -136,31 +149,56 @@ void MainWindow::setupUiManual() {
     QHBoxLayout* authLayout = new QHBoxLayout();
     lblAuthStatus = new QLabel("Twitch連携状態: 未認証", this);
     lblAuthStatus->setStyleSheet("font-weight: bold; font-size: 13px; color: #FF55FF;");
+    
     btnLogin = new QPushButton("🔑 認証ログイン", this);
     btnLogin->setCursor(Qt::PointingHandCursor);
     btnLogin->setFixedWidth(130);
     connect(btnLogin, &QPushButton::clicked, this, &MainWindow::onLoginClicked);
+
+    btnRun = new QPushButton("📥 取得", this);
+    btnRun->setCursor(Qt::PointingHandCursor);
+    btnRun->setFixedWidth(100);
+    btnRun->setEnabled(false); // ログインするまで無効化
+    connect(btnRun, &QPushButton::clicked, this, &MainWindow::onCheckDifferenceClicked);
+
+    btnExport = new QPushButton("📥 CSV出力", this);
+    btnExport->setCursor(Qt::PointingHandCursor);
+    btnExport->setFixedWidth(120);
+    btnExport->setEnabled(false); // データ取得するまで無効化
+    connect(btnExport, &QPushButton::clicked, this, &MainWindow::onExportCsvClicked);
     
     authLayout->addWidget(lblAuthStatus);
     authLayout->addSpacing(20);
     authLayout->addWidget(btnLogin);
+    authLayout->addSpacing(10);
+    authLayout->addWidget(btnRun);
+    authLayout->addSpacing(10);
+    authLayout->addWidget(btnExport);
     authLayout->addStretch();
     checkerLayout->addLayout(authLayout);
 
-    // サブタブ widget (フィルタ表示切り替え用)
-    m_subTabWidget = new QTabWidget(this);
-    m_subTabWidget->addTab(new QWidget(), UIConstants::SUB_TAB_ALL);
-    m_subTabWidget->addTab(new QWidget(), UIConstants::SUB_TAB_MUTUAL);
-    m_subTabWidget->addTab(new QWidget(), UIConstants::SUB_TAB_FOLLOWING);
-    m_subTabWidget->addTab(new QWidget(), UIConstants::SUB_TAB_FOLLOWERS);
-    connect(m_subTabWidget, &QTabWidget::currentChanged, this, &MainWindow::onSubTabChanged);
+    // サブタブ widget (フィルタ表示切り替え用、動的に設定のON/OFFで表示更新)
+    m_subTabWidget = new QTabBar(this);
+    m_subTabWidget->setShape(QTabBar::RoundedNorth);
+    m_subTabWidget->setDrawBase(true);
+    connect(m_subTabWidget, &QTabBar::currentChanged, this, &MainWindow::onSubTabChanged);
     checkerLayout->addWidget(m_subTabWidget);
 
     // テーブルビューとモデルの構築 (Model/View構造)
     m_tableView = new QTableView(this);
     m_tableView->setSortingEnabled(true);
     m_tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    // 列幅をInteractiveにして横スクロールを有効化
+    m_tableView->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    m_tableView->horizontalHeader()->setMinimumSectionSize(80);
+    m_tableView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    m_tableView->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    // 初期列幅を設定（ウィンドウサイズより大きい場合に横スクロールが出る）
+    m_tableView->setColumnWidth(0, 140); // 表示名
+    m_tableView->setColumnWidth(1, 140); // ログイン名
+    m_tableView->setColumnWidth(2, 100); // 関係
+    m_tableView->setColumnWidth(3, 155); // フォロー開始日
+    m_tableView->setColumnWidth(4, 220); // チャンネルURL
     
     m_followerModel = new FollowerModel(this);
     
@@ -170,25 +208,10 @@ void MainWindow::setupUiManual() {
     m_proxyModel->setFilterKeyColumn(2); // "関係" カラム (インデックス2) を対象にフィルタリングする
     
     m_tableView->setModel(m_proxyModel);
+    // URLカラム（4列目）のクリックでブラウザ起動
+    connect(m_tableView, &QTableView::clicked, this, &MainWindow::onTableCellClicked);
+    m_tableView->setCursor(Qt::PointingHandCursor);
     checkerLayout->addWidget(m_tableView);
-
-    // 実行・CSV出力ボタン
-    QHBoxLayout* bottomBtnLayout = new QHBoxLayout();
-    btnRun = new QPushButton("📊 差分チェック実行", this);
-    btnRun->setCursor(Qt::PointingHandCursor);
-    btnRun->setFixedHeight(35);
-    btnRun->setEnabled(false); // ログインするまで無効化
-    connect(btnRun, &QPushButton::clicked, this, &MainWindow::onCheckDifferenceClicked);
-
-    btnExport = new QPushButton("📥 CSV出力", this);
-    btnExport->setCursor(Qt::PointingHandCursor);
-    btnExport->setFixedHeight(35);
-    btnExport->setEnabled(false); // データ取得するまで無効化
-    connect(btnExport, &QPushButton::clicked, this, &MainWindow::onExportCsvClicked);
-
-    bottomBtnLayout->addWidget(btnRun);
-    bottomBtnLayout->addWidget(btnExport);
-    checkerLayout->addLayout(bottomBtnLayout);
 
     m_mainTabWidget->addTab(checkerWidget, UIConstants::MAIN_TAB_CHECKER);
 
@@ -199,28 +222,45 @@ void MainWindow::setupUiManual() {
     QVBoxLayout* settingsLayout = new QVBoxLayout(settingsWidget);
 
     // 各種機能ON/OFFチェックボックス
-    QGroupBox* grpFunctions = new QGroupBox("取得・比較機能のON/OFF", this);
+    QGroupBox* grpFunctions = new QGroupBox("リスト表示・取得機能のON/OFF", this);
     QVBoxLayout* grpFuncLayout = new QVBoxLayout(grpFunctions);
-    chkFollowing = new QCheckBox("フォローしている人の一覧を取得", this);
-    chkFollowers = new QCheckBox("フォロワーの一覧を取得", this);
-    chkCompare = new QCheckBox("フォロー vs フォロワーの比較を実行", this);
+    chkShowAll = new QCheckBox("「全て」リストの表示", this);
+    chkShowMutual = new QCheckBox("「相互」リストの表示", this);
+    chkShowFollowingOnly = new QCheckBox("「フォローのみ」リストの表示", this);
+    chkShowFollowersOnly = new QCheckBox("「フォロワーのみ」リストの表示", this);
     
-    grpFuncLayout->addWidget(chkFollowing);
-    grpFuncLayout->addWidget(chkFollowers);
-    grpFuncLayout->addWidget(chkCompare);
+    grpFuncLayout->addWidget(chkShowAll);
+    grpFuncLayout->addWidget(chkShowMutual);
+    grpFuncLayout->addWidget(chkShowFollowingOnly);
+    grpFuncLayout->addWidget(chkShowFollowersOnly);
     settingsLayout->addWidget(grpFunctions);
 
     // APIカスタムキー上書き用
     QGroupBox* grpApi = new QGroupBox("Twitch APIキー（カスタム設定）", this);
     QVBoxLayout* grpApiLayout = new QVBoxLayout(grpApi);
-    grpApiLayout->addWidget(new QLabel("Client ID (空なら埋め込みのデフォルトキーを使用):", this));
+    
+    chkOverrideApi = new QCheckBox("カスタムAPIキーを入力する", this);
+    grpApiLayout->addWidget(chkOverrideApi);
+
+    QWidget* apiContainerWidget = new QWidget(this);
+    QVBoxLayout* apiContainerLayout = new QVBoxLayout(apiContainerWidget);
+    apiContainerLayout->setContentsMargins(0, 0, 0, 0);
+
+    apiContainerLayout->addWidget(new QLabel("Client ID (空なら埋め込みのデフォルトキーを使用):", this));
     txtClientId = new QLineEdit(this);
-    grpApiLayout->addWidget(txtClientId);
-    grpApiLayout->addWidget(new QLabel("Client Secret (空なら埋め込みのデフォルトキーを使用):", this));
+    apiContainerLayout->addWidget(txtClientId);
+    
+    apiContainerLayout->addWidget(new QLabel("Client Secret (空なら埋め込みのデフォルトキーを使用):", this));
     txtClientSecret = new QLineEdit(this);
     txtClientSecret->setEchoMode(QLineEdit::Password);
-    grpApiLayout->addWidget(txtClientSecret);
+    apiContainerLayout->addWidget(txtClientSecret);
+
+    grpApiLayout->addWidget(apiContainerWidget);
     settingsLayout->addWidget(grpApi);
+
+    // デフォルトで非表示にし、チェックボックスのトグルで表示切り替え
+    apiContainerWidget->setVisible(false);
+    connect(chkOverrideApi, &QCheckBox::toggled, apiContainerWidget, &QWidget::setVisible);
 
     // デザインカスタマイズ用
     QGroupBox* grpDesign = new QGroupBox("画面のカスタマイズ設定", this);
@@ -257,6 +297,19 @@ void MainWindow::setupUiManual() {
     });
 }
 
+// ---------------------------------------------------------------------------
+// ステータスバー右側ラベルへの一時通知表示（改ざん判定の左側メッセージは上書きしない）
+// ---------------------------------------------------------------------------
+void MainWindow::showStatusInfo(const QString& message, int durationMs) {
+    if (!m_statusInfoLabel) return;
+    m_statusInfoLabel->setText(message);
+    if (durationMs > 0) {
+        QTimer::singleShot(durationMs, this, [this]() {
+            if (m_statusInfoLabel) m_statusInfoLabel->clear();
+        });
+    }
+}
+
 void MainWindow::applyCustomStyles() {
     // 1. 文字色とフォントの適用
     QString textColorStr = m_config->get("custom_text_color", "#E1E1E6").toString();
@@ -272,14 +325,40 @@ void MainWindow::applyCustomStyles() {
         QTabWidget::pane { border: 1px solid #29292E; background-color: #1D1D22; top: -1px; }
         QTabBar::tab { background-color: #121214; color: #A9A9B2; border: 1px solid #29292E; padding: 10px 20px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
         QTabBar::tab:selected { background-color: #1D1D22; color: #FFFFFF; border-bottom-color: #1D1D22; font-weight: bold; }
-        QGroupBox { border: 1px solid #29292E; border-radius: 6px; margin-top: 12px; font-weight: bold; color: #FFFFFF; }
-        QLabel { color: %1; }
-        QCheckBox { color: %1; }
-        QLineEdit { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px; }
-        QPushButton { border: 1px solid #29292E; border-radius: 4px; padding: 5px; color: #FFFFFF; background-color: #29292E; }
-        QPushButton:hover { background-color: #35353B; }
-        QTableView { background-color: #121214; color: %1; gridline-color: #29292E; border: 1px solid #29292E; border-radius: 4px; }
-        QHeaderView::section { background-color: #1D1D22; color: #A9A9B2; border: 1px solid #29292E; padding: 5px; }
+        
+        /* QGroupBox のボーダー重なりと内部コンテンツの被りを解決 */
+        QGroupBox {
+            border: 1px solid #29292E;
+            border-radius: 6px;
+            margin-top: 12px;
+            padding-top: 16px;
+            font-weight: bold;
+            color: #FFFFFF;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            subcontrol-position: top left;
+            left: 10px;
+            top: 6px; /* ボーダーラインの真上に綺麗に重なるよう調整 */
+            padding: 0 6px;
+            background-color: #1D1D22;
+            color: #E1E1E6;
+        }
+
+        /* QColorDialog の色選択ボタンが背景と同化するのを防ぐため、枠線を追加 */
+        QColorDialog QPushButton {
+            border: 1px solid #B0B0B0;
+            border-radius: 2px;
+        }
+
+        /* 標準ダイアログ（QColorDialog/QFontDialog）への文字色漏洩を防ぐため、#centralWidget 内に限定 */
+        #centralWidget QLabel { color: %1; }
+        #centralWidget QCheckBox { color: %1; }
+        #centralWidget QLineEdit { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px; }
+        #centralWidget QPushButton { border: 1px solid #29292E; border-radius: 4px; padding: 5px; color: #FFFFFF; background-color: #29292E; }
+        #centralWidget QPushButton:hover { background-color: #35353B; }
+        #centralWidget QTableView { background-color: #121214; color: %1; gridline-color: #29292E; border: 1px solid #29292E; border-radius: 4px; }
+        #centralWidget QHeaderView::section { background-color: #1D1D22; color: #A9A9B2; border: 1px solid #29292E; padding: 5px; }
     )").arg(textColorStr);
 
     this->setStyleSheet(baseStyle);
@@ -303,28 +382,58 @@ void MainWindow::applyCustomStyles() {
 }
 
 void MainWindow::loadSettingsToUi() {
-    chkFollowing->setChecked(m_config->get("get_following", true).toBool());
-    chkFollowers->setChecked(m_config->get("get_followers", true).toBool());
-    chkCompare->setChecked(m_config->get("compare_lists", true).toBool());
-    txtClientId->setText(m_config->get("custom_client_id", "").toString());
-    txtClientSecret->setText(m_config->get("custom_client_secret", "").toString());
+    // デフォルト値: 「フォローのみ」と「相互」のON、「全て」と「フォロワーのみ」はOFF
+    chkShowAll->setChecked(m_config->get("show_all", false).toBool());
+    chkShowMutual->setChecked(m_config->get("show_mutual", true).toBool());
+    chkShowFollowingOnly->setChecked(m_config->get("show_following_only", true).toBool());
+    chkShowFollowersOnly->setChecked(m_config->get("show_followers_only", false).toBool());
+    
+    QString customClientId = m_config->get("custom_client_id", "").toString();
+    QString customClientSecret = m_config->get("custom_client_secret", "").toString();
+    
+    txtClientId->setText(customClientId);
+    txtClientSecret->setText(customClientSecret);
+
+    if (chkOverrideApi) {
+        chkOverrideApi->setChecked(!customClientId.isEmpty());
+    }
+
+    updateSubTabsVisibility();
 }
 
 void MainWindow::saveUiToSettings() {
-    m_config->set("get_following", chkFollowing->isChecked());
-    m_config->set("get_followers", chkFollowers->isChecked());
-    m_config->set("compare_lists", chkCompare->isChecked());
-    m_config->set("custom_client_id", txtClientId->text());
-    m_config->set("custom_client_secret", txtClientSecret->text());
+    m_config->set("show_all", chkShowAll->isChecked());
+    m_config->set("show_mutual", chkShowMutual->isChecked());
+    m_config->set("show_following_only", chkShowFollowingOnly->isChecked());
+    m_config->set("show_followers_only", chkShowFollowersOnly->isChecked());
+    
+    if (chkOverrideApi && chkOverrideApi->isChecked()) {
+        m_config->set("custom_client_id", txtClientId->text().trimmed());
+        m_config->set("custom_client_secret", txtClientSecret->text().trimmed());
+    } else {
+        if (txtClientId) txtClientId->clear();
+        if (txtClientSecret) txtClientSecret->clear();
+        m_config->set("custom_client_id", "");
+        m_config->set("custom_client_secret", "");
+    }
     
     if (m_config->save()) {
-        QMessageBox::information(this, "保存完了", "システム設定を正常に暗号化保存しました。");
+        updateSubTabsVisibility();
+        showStatusInfo("✅ システム設定を正常に暗号化保存しました。");
     } else {
-        QMessageBox::warning(this, "保存失敗", "設定の保存に失敗しました。");
+        showStatusInfo("⚠️ 設定の保存に失敗しました。");
     }
 }
 
 void MainWindow::onLoginClicked() {
+    // セッション継続中は再認証フローを走らせず、ボタンの一時無効化→有効化（ちらつきアピール）のみ行う
+    if (!m_twitchToken.isEmpty()) {
+        btnLogin->setEnabled(false);
+        QTimer::singleShot(300, this, [this]() {
+            btnLogin->setEnabled(true);
+        });
+        return;
+    }
     btnLogin->setEnabled(false);
     lblAuthStatus->setText("Twitch連携状態: ブラウザ待機中...");
     m_auth->startAuthFlow();
@@ -332,9 +441,14 @@ void MainWindow::onLoginClicked() {
 
 void MainWindow::onAuthSuccess(const QString& token) {
     // ヌル文字が絶対に混入しないようにサニタイズ（安全対策の二重防御）
-    m_twitchToken = token;
-    m_twitchToken.remove(QChar('\0'));
-    m_twitchToken = m_twitchToken.trimmed();
+    QString sanitizedToken = token;
+    sanitizedToken.remove(QChar('\0'));
+    sanitizedToken = sanitizedToken.trimmed();
+
+    if (m_twitchToken == sanitizedToken) {
+        return; // 既に同じトークンで処理済みの場合は重複ダイアログの表示をスキップ
+    }
+    m_twitchToken = sanitizedToken;
 
     lblAuthStatus->setText("Twitch連携状態: 認証済み ✅");
     lblAuthStatus->setStyleSheet("font-weight: bold; font-size: 13px; color: #55FF55;");
@@ -342,7 +456,7 @@ void MainWindow::onAuthSuccess(const QString& token) {
     btnLogin->setEnabled(true);
     btnRun->setEnabled(true);
 
-    QMessageBox::information(this, "ログイン成功", "Twitch連携ログインに成功しました！\n差分チェックが実行可能です。");
+    showStatusInfo("✅ Twitch連携ログインに成功しました！差分チェックが実行可能です。");
     Logger::logInfo("OAuth Session established.");
 }
 
@@ -351,40 +465,24 @@ void MainWindow::onCheckDifferenceClicked() {
     btnRun->setText("処理中...");
     Logger::logInfo("Fetching Twitch follower difference data...");
 
-    QList<FollowerItem> following;
-    QList<FollowerItem> followers;
+    QList<FollowerItem> following = m_apiClient->fetchFollowing(m_twitchToken);
+    QList<FollowerItem> followers = m_apiClient->fetchFollowers(m_twitchToken);
 
-    if (chkFollowing->isChecked()) {
-        following = m_apiClient->fetchFollowing(m_twitchToken);
-    }
-    
-    if (chkFollowers->isChecked()) {
-        followers = m_apiClient->fetchFollowers(m_twitchToken);
-    }
-
+    QList<FollowerItem> rawList = m_apiClient->compareLists(following, followers);
     QList<FollowerItem> resultList;
-    if (chkCompare->isChecked() && chkFollowing->isChecked() && chkFollowers->isChecked()) {
-        resultList = m_apiClient->compareLists(following, followers);
-    } else {
-        // 比較しない場合は両方を合算して表示
-        for (const auto& item : following) {
-            FollowerItem it = item;
-            it.relationship = "フォローのみ";
-            resultList.append(it);
-        }
-        for (const auto& item : followers) {
-            // 被りを除外
-            bool exists = false;
-            for (const auto& existing : resultList) {
-                if (existing.loginName == item.loginName) {
-                    exists = true;
-                    break;
-                }
+
+    for (const auto& item : rawList) {
+        if (item.relationship == "相互") {
+            if (chkShowMutual && chkShowMutual->isChecked()) {
+                resultList.append(item);
             }
-            if (!exists) {
-                FollowerItem it = item;
-                it.relationship = "フォロワーのみ";
-                resultList.append(it);
+        } else if (item.relationship == "フォローのみ") {
+            if (chkShowFollowingOnly && chkShowFollowingOnly->isChecked()) {
+                resultList.append(item);
+            }
+        } else if (item.relationship == "フォロワーのみ") {
+            if (chkShowFollowersOnly && chkShowFollowersOnly->isChecked()) {
+                resultList.append(item);
             }
         }
     }
@@ -392,11 +490,17 @@ void MainWindow::onCheckDifferenceClicked() {
     // テーブルビューへバインド
     m_followerModel->setFollowers(resultList);
     
+    // データ更新後に列幅をコンテンツに合わせて自動調整
+    m_tableView->resizeColumnsToContents();
+
     btnRun->setEnabled(true);
-    btnRun->setText("📊 差分チェック実行");
+    btnRun->setText("📥 取得");
     btnExport->setEnabled(resultList.size() > 0);
 
-    QMessageBox::information(this, "取得完了", QString("差分チェックが完了しました！\n合計: %1 件を取得。").arg(resultList.size()));
+    // 各サブタブの件数を更新
+    updateSubTabCounts();
+
+    showStatusInfo(QString("✅ データの取得が完了しました！合計: %1 件。").arg(resultList.size()));
 }
 
 void MainWindow::onExportCsvClicked() {
@@ -416,9 +520,9 @@ void MainWindow::onExportCsvClicked() {
     QTextStream out(&file);
     out.setEncoding(QStringConverter::Utf8); // UTF-8指定
 
-    // 2. ヘッダー出力
-    out << UIConstants::HEADER_LOGIN_NAME << ","
-        << UIConstants::HEADER_DISPLAY_NAME << ","
+    // 2. ヘッダー出力（カラム順: 表示名→ログイン名→関係→フォロー開始日→URL）
+    out << UIConstants::HEADER_DISPLAY_NAME << ","
+        << UIConstants::HEADER_LOGIN_NAME << ","
         << UIConstants::HEADER_RELATIONSHIP << ","
         << UIConstants::HEADER_FOLLOW_DATE << ","
         << UIConstants::HEADER_CHANNEL_URL << "\n";
@@ -427,15 +531,15 @@ void MainWindow::onExportCsvClicked() {
     const QList<FollowerItem>& list = m_followerModel->getFollowersList();
     for (const auto& item : list) {
         QString dateStr = item.followedAt.isValid() ? item.followedAt.toString("yyyy-MM-dd hh:mm:ss") : "-";
-        out << "\"" << item.loginName << "\","
-            << "\"" << item.displayName << "\","
+        out << "\"" << item.displayName << "\","
+            << "\"" << item.loginName << "\","
             << "\"" << item.relationship << "\","
             << "\"" << dateStr << "\","
             << "\"" << item.channelUrl << "\"\n";
     }
 
     file.close();
-    QMessageBox::information(this, "出力完了", "BOM付きUTF-8 CSVファイルを正常に出力しました！\nExcelで直接文字化けなく閲覧可能です。");
+    showStatusInfo("✅ BOM付きUTF-8 CSVを正常に出力しました！Excelで直接文字化けなく閲覧可能です。");
     Logger::logInfo(QString("Successfully exported %1 rows to CSV with UTF-8 BOM.").arg(list.size()));
 }
 
@@ -467,20 +571,123 @@ void MainWindow::onSelectFont() {
 
 void MainWindow::onSubTabChanged(int index) {
     if (!m_proxyModel) return;
+    if (index < 0 || index >= m_subTabWidget->count()) return;
 
-    // 定数化したサブタブの対応文字を取得してフィルタリング
-    switch (index) {
-        case 0: // 全て
-            m_proxyModel->setFilterFixedString("");
-            break;
-        case 1: // 相互
-            m_proxyModel->setFilterFixedString(UIConstants::SUB_TAB_MUTUAL);
-            break;
-        case 2: // フォローのみ
-            m_proxyModel->setFilterFixedString(UIConstants::SUB_TAB_FOLLOWING);
-            break;
-        case 3: // フォロワーのみ
-            m_proxyModel->setFilterFixedString("フォロワーのみ");
-            break;
+    // タブ名に件数が付加されている場合もあるため、ベース名でプレフィックスマッチする
+    QString tabText = m_subTabWidget->tabText(index);
+
+    if (tabText.startsWith("全て")) {
+        m_proxyModel->setFilterFixedString("");
+    } else if (tabText.startsWith("相互")) {
+        m_proxyModel->setFilterFixedString("相互");
+    } else if (tabText.startsWith("フォローのみ")) {
+        m_proxyModel->setFilterFixedString("フォローのみ");
+    } else if (tabText.startsWith("フォロワーのみ")) {
+        m_proxyModel->setFilterFixedString("フォロワーのみ");
+    }
+}
+
+void MainWindow::updateSubTabsVisibility() {
+    if (!m_subTabWidget) return;
+
+    // 現在のタブ名を一時保存して再選択できるようにする
+    QString currentText = "";
+    if (m_subTabWidget->count() > 0 && m_subTabWidget->currentIndex() >= 0) {
+        currentText = m_subTabWidget->tabText(m_subTabWidget->currentIndex());
+    }
+
+    // タブ再構築中の不要なインデックス変更シグナルを遮断
+    m_subTabWidget->blockSignals(true);
+
+    // すべてのタブをクリア
+    while (m_subTabWidget->count() > 0) {
+        m_subTabWidget->removeTab(0);
+    }
+
+    int indexToSelect = 0;
+    int currentNewIndex = 0;
+
+    if (chkShowAll && chkShowAll->isChecked()) {
+        m_subTabWidget->addTab("全て");
+        if (currentText == "全て") indexToSelect = currentNewIndex;
+        currentNewIndex++;
+    }
+    if (chkShowMutual && chkShowMutual->isChecked()) {
+        m_subTabWidget->addTab("相互");
+        if (currentText == "相互") indexToSelect = currentNewIndex;
+        currentNewIndex++;
+    }
+    if (chkShowFollowingOnly && chkShowFollowingOnly->isChecked()) {
+        m_subTabWidget->addTab("フォローのみ");
+        if (currentText == "フォローのみ") indexToSelect = currentNewIndex;
+        currentNewIndex++;
+    }
+    if (chkShowFollowersOnly && chkShowFollowersOnly->isChecked()) {
+        m_subTabWidget->addTab("フォロワーのみ");
+        if (currentText == "フォロワーのみ") indexToSelect = currentNewIndex;
+        currentNewIndex++;
+    }
+
+    m_subTabWidget->blockSignals(false);
+
+    if (m_subTabWidget->count() > 0) {
+        m_subTabWidget->setCurrentIndex(qMin(indexToSelect, m_subTabWidget->count() - 1));
+        // 手動でフィルターの更新をトリガー
+        onSubTabChanged(m_subTabWidget->currentIndex());
+    }
+}
+
+// ---------------------------------------------------------------------------
+// URLカラムクリック：プロキシモデル経由のインデックスをソースインデックスに変換してURL取得
+// ---------------------------------------------------------------------------
+void MainWindow::onTableCellClicked(const QModelIndex& proxyIndex) {
+    if (!proxyIndex.isValid()) return;
+    // URLカラムは列インデックス4
+    if (proxyIndex.column() != 4) return;
+
+    // ProxyIndex→SourceIndexの変換により正しいソースインデックスを取得
+    QModelIndex sourceIndex = m_proxyModel->mapToSource(proxyIndex);
+    const QList<FollowerItem>& list = m_followerModel->getFollowersList();
+    if (sourceIndex.row() < 0 || sourceIndex.row() >= list.size()) return;
+
+    QString url = list.at(sourceIndex.row()).channelUrl;
+    if (!url.isEmpty()) {
+        QDesktopServices::openUrl(QUrl(url));
+        Logger::logInfo(QString("Opening channel URL: %1").arg(url));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 各サブタブのラベルに件数を付加する
+// ---------------------------------------------------------------------------
+void MainWindow::updateSubTabCounts() {
+    if (!m_subTabWidget || !m_followerModel) return;
+
+    // 各カテゴリの件数を集計
+    int countAll = 0, countMutual = 0, countFollowingOnly = 0, countFollowersOnly = 0;
+    const QList<FollowerItem>& list = m_followerModel->getFollowersList();
+    for (const auto& item : list) {
+        if (item.relationship == "相互") {
+            countMutual++;
+        } else if (item.relationship == "フォローのみ") {
+            countFollowingOnly++;
+        } else if (item.relationship == "フォロワーのみ") {
+            countFollowersOnly++;
+        }
+    }
+    countAll = list.size(); // 「全て」は全件数
+
+    // 各タブのラベルを「全て (6)」形式で更新
+    for (int i = 0; i < m_subTabWidget->count(); ++i) {
+        QString tabText = m_subTabWidget->tabText(i);
+        if (tabText.startsWith("全て")) {
+            m_subTabWidget->setTabText(i, QString("全て (%1)").arg(countAll));
+        } else if (tabText.startsWith("相互")) {
+            m_subTabWidget->setTabText(i, QString("相互 (%1)").arg(countMutual));
+        } else if (tabText.startsWith("フォローのみ")) {
+            m_subTabWidget->setTabText(i, QString("フォローのみ (%1)").arg(countFollowingOnly));
+        } else if (tabText.startsWith("フォロワーのみ")) {
+            m_subTabWidget->setTabText(i, QString("フォロワーのみ (%1)").arg(countFollowersOnly));
+        }
     }
 }
