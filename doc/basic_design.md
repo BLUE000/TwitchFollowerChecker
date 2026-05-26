@@ -74,6 +74,7 @@ namespace UIConstants {
 * **デフォルトテーマ**: 高級感のあるプレミアム・ダークモードを採用。
 * **背景画像設定機能**: ユーザーが設定画面から任意の画像（PNG/JPG）を指定し、メインウィンドウの背景に設定（アスペクト比を維持してフィット）できます。
 * **文字色カスタマイズ機能**: 設定画面のカラーパレット（`QColorDialog`）または直接入力された16進数カラーコード（例: `#FF55FF`）によって、テキスト色を動的に変更可能です。
+* **ユーザー指定フォント機能**: 設定画面からフォント選択ダイアログ（`QFontDialog`）を起動し、アプリ内の表示フォント（フォントファミリー、サイズ、太さなど）を自由に変更できます。
 
 ---
 
@@ -92,7 +93,8 @@ namespace UIConstants {
   "custom_client_id": "",
   "custom_client_secret": "",
   "custom_text_color": "#E1E1E6",
-  "background_image_path": ""
+  "background_image_path": "",
+  "custom_font": ""
 }
 ```
 
@@ -209,4 +211,20 @@ for (const auto& item : followers) {
  */
 QList<FollowerItem> compareFollowers(const QList<FollowerItem>& followingList, 
                                      const QList<FollowerItem>& followerList);
+```
+
+### 6.4. ヌル文字（`\0`）の混入防止（難読化・認証対策）
+暗号ライブラリからの復号時、またはOAuth連携による外部文字列受信時に、バイナリバッファのパディング等の理由で文字列の末尾や途中に **ヌル文字（`\0`）が混入する不具合を完全に防止します。**
+
+* **問題点**: 
+  `QString` 内部に `\0` が混入したままWeb APIのリクエストヘッダー（`Authorization: Bearer <token>\0`）等に使用されると、HTTPヘッダー解析エラーやトークン不一致（401）等の原因不明の通信エラーを引き起こします。
+* **防止策**: 
+  1. 復号されたバイト配列（`QByteArray`）を `QString` に変換する際は、`\0` を完全に除去するか、最初の `\0` までの文字列として切り詰めます。
+  2. トークンや認証情報をネットワークリクエストに使用する前に、明示的に `\0` を除去します。
+
+```cpp
+// ヌル文字除去処理の徹底例
+QString sanitizedToken = decryptedToken;
+sanitizedToken.remove(QChar('\0')); // 文字列内のヌル文字を安全に完全除去
+sanitizedToken = sanitizedToken.trimmed(); // 前後の空白・制御文字を除去
 ```
