@@ -1,0 +1,28 @@
+# Local Configuration Template for TwitchFollowerChecker
+# Copy this file to "local_config.cmake" and adjust the settings below for your local PC environment.
+# "local_config.cmake" is ignored by git and will not be committed.
+
+# ==============================================================================
+# 1. Qt6 Installation Path Settings
+# ==============================================================================
+# If CMake cannot find your Qt6 installation automatically, uncomment one of the options below.
+
+# Option A: Set CMAKE_PREFIX_PATH (Recommended)
+# Points to the root directory of your Qt6 toolchain (where bin, lib, include directories reside).
+# Example: C:/Qt/6.5.0/msvc2019_64
+#
+# set(CMAKE_PREFIX_PATH "C:/Qt/6.5.0/msvc2019_64" CACHE PATH "Local Qt6 prefix path" FORCE)
+
+# Option B: Set Qt6 CMake Directory directly
+# Example: C:/Qt/6.5.0/msvc2019_64/lib/cmake/Qt6
+#
+# set(Qt6_DIR "C:/Qt/6.5.0/msvc2019_64/lib/cmake/Qt6" CACHE PATH "Local Qt6 CMake path" FORCE)
+
+
+# ==============================================================================
+# 2. Custom Environment Variables (Optional)
+# ==============================================================================
+# You can set local environment variables or paths needed for build or execution here.
+# Example:
+# set(ENV{TWITCH_CLIENT_ID} "your_client_id_here")
+# set(ENV{TWITCH_CLIENT_SECRET} "your_client_secret_here")

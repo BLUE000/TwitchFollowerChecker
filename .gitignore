@@ -1,0 +1,59 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Qt Creator / Qt files
+*.user
+*.user.*
+CMakeLists.txt.user
+*.qmlc
+*.jsc
+
+# CMake
+/build/
+/out/
+/cmake-build-debug/
+/cmake-build-release/
+/CMakeFiles/
+CMakeCache.txt
+CMakeFiles
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+# Local configurations (Environment variables & PC-specific settings)
+/local_config.cmake
+.env
+.env.*
+.vscode/
+.vs/
