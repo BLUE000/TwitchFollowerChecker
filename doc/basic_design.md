@@ -13,6 +13,8 @@ TwitchFollowerChecker/
 ├── TransCipher.dll            # 難読化・データ保護DLL（実行時に必要）
 ├── config/                    # 設定ファイル格納用フォルダ（事前作成）
 │   └── config.tcf             # 難読化済みのアプリケーション設定ファイル
+├── logs/                      # ログ出力用フォルダ
+│   └── app.tcf                # 難読化済みのアプリケーション実行ログ
 └── doc/                       # 開発ドキュメント類
     ├── requirements_definition.md
     └── basic_design.md
@@ -107,6 +109,15 @@ TwitchのOAuthアクセストークンは、セキュリティ向上のため **
   2. 実行中にトークン有効期限が切れる（APIが401エラーを返す）等でセッションが切れた時。
   * 上記のタイミングでは、ユーザーが明示的に「認証ログイン」ボタンを押してブラウザ経由でログイン処理をやり直す仕様とします。
 
+### 3.3. ログの難読化（暗号化）出力設計
+アプリケーションの実行状況やエラーを記録するログファイルについて、第三者への機密情報漏洩を防ぎつつ、開発者がトラブルシューティングを行えるようにするため、難読化した状態で出力します。
+
+* **保存ファイルパス**: `logs/app.log`
+* **難読化キー（ログ用）**: 固定の文字列キー（例: `"BLUE000_LOG_FIXED_KEY"`）をコード内に定義し、これを用いて暗号化します。
+* **出力方式（行単位暗号化）**:
+  * アプリが強制終了（クラッシュ）した場合でもログが破損しないようにするため、**「1回のログ出力（1行）ごとに暗号化を実行し、Base64文字列に変換してファイルへ追加書き込み（Append）」**します。
+  * 解析時は、開発者が持っている固定キーを用いて、ログファイルを1行ずつ復号（デコード）して確認します。
+
 ---
 
 ## 4. 🗃️ CSV出力仕様（Excel文字化け対策）
@@ -172,11 +183,20 @@ classDiagram
         +fetchFollowers(QString token) QList~FollowerItem~
     }
 
+    class Logger {
+        -static QString s_logPath
+        -static QString s_fixedKey
+        +static logInfo(QString msg) Void
+        +static logWarning(QString msg) Void
+        +static logError(QString msg) Void
+    }
+
     MainWindow --> FollowerModel : 所有・設定
     MainWindow --> ConfigManager : 設定ロード/セーブ
     MainWindow --> TwitchAuth : 認証実行
     MainWindow --> TwitchApiClient : APIリクエスト実行
     FollowerModel --> FollowerItem : 保持
+    MainWindow --> Logger : ログ出力呼び出し
 ```
 
 ---
