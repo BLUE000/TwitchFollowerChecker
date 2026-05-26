@@ -46,6 +46,11 @@ else()
     add_executable(${PROJECT_NAME} ${PROJECT_SOURCES})
 endif()
 
+# Pass CMake managed version to C++ compile definitions
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    APP_VERSION_STRING="${PROJECT_VERSION}"
+)
+
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
