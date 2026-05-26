@@ -89,14 +89,14 @@ MainWindow::MainWindow(QWidget *parent)
 
     // 3. 起動時トークン認証の実行 (キルスイッチ)
     // 開発用の local_config.cmake または user_preset で設定されたトークンがあれば検証します。
-    // ※今回はサンプルとして、埋め込まれているトークンが空でなければチェックする仕様とします。
     #ifdef TRANSCIPHER_API_TOKEN
     QString startupToken = TRANSCIPHER_API_TOKEN;
     #else
     QString startupToken = "";
     #endif
 
-    if (!startupToken.isEmpty()) {
+    // スタブモードであるか、またはトークンが空でなければ検証を実行する
+    if (m_auth->isStubMode() || !startupToken.isEmpty()) {
         if (!m_auth->verifyStartupToken(startupToken)) {
             QMessageBox::critical(this, "ライセンス認証エラー", 
                                   "このアプリケーションのライセンス認証に失敗しました。\nアプリケーションを終了します。");
