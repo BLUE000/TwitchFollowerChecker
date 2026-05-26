@@ -61,3 +61,7 @@ compile_commands.json
 # Private security documentation
 /doc/security_architecture.md
 
+# Release packages
+*.zip
+
+

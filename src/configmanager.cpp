@@ -25,6 +25,7 @@ bool ConfigManager::load() {
         m_settings["show_following_only"] = true;
         m_settings["show_followers_only"] = true;
         m_settings["custom_text_color"] = "#E1E1E6";
+        m_settings["custom_bg_color"] = "#121214";
         m_settings["background_image_path"] = "";
         m_settings["custom_font"] = "";
         m_settings["custom_client_id"] = "";

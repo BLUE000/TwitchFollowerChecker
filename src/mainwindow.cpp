@@ -17,6 +17,8 @@
 #include <QDesktopServices>
 #include <QUrl>
 #include <QTimer>
+#include <QPainter>
+#include <QResizeEvent>
 
 #ifndef APP_VERSION_STRING
 #define APP_VERSION_STRING "1.0.0"
@@ -138,6 +140,31 @@ void MainWindow::setupUiManual() {
 
     m_mainTabWidget = new QTabWidget(this);
     mainLayout->addWidget(m_mainTabWidget);
+
+    // コーナーウィジェットの作成（❓ ヘルプ ＆ ℹ️ アバウト）
+    QWidget* cornerWidget = new QWidget(this);
+    QHBoxLayout* cornerLayout = new QHBoxLayout(cornerWidget);
+    cornerLayout->setContentsMargins(0, 0, 10, 0);
+    cornerLayout->setSpacing(5);
+
+    QPushButton* btnHelp = new QPushButton("❓ ヘルプ", this);
+    btnHelp->setCursor(Qt::PointingHandCursor);
+    btnHelp->setFixedWidth(80);
+    btnHelp->setStyleSheet("border: 1px solid #29292E; border-radius: 4px; padding: 4px; color: #FFFFFF; background-color: #29292E;");
+    connect(btnHelp, &QPushButton::clicked, this, &MainWindow::onHelpClicked);
+
+    QPushButton* btnAbout = new QPushButton("ℹ️ アバウト", this);
+    btnAbout->setCursor(Qt::PointingHandCursor);
+    btnAbout->setFixedWidth(80);
+    btnAbout->setStyleSheet("border: 1px solid #29292E; border-radius: 4px; padding: 4px; color: #FFFFFF; background-color: #29292E;");
+    connect(btnAbout, &QPushButton::clicked, this, &MainWindow::onAboutClicked);
+
+    cornerLayout->addWidget(btnHelp);
+    cornerLayout->addWidget(btnAbout);
+    cornerWidget->setLayout(cornerLayout);
+
+    m_mainTabWidget->setCornerWidget(cornerWidget, Qt::TopRightCorner);
+
 
     // ==========================================
     // タブ1: フォロワーチェッカー
@@ -270,6 +297,11 @@ void MainWindow::setupUiManual() {
     connect(btnBg, &QPushButton::clicked, this, &MainWindow::onSelectBackgroundImage);
     grpDesignLayout->addWidget(btnBg);
 
+    QPushButton* btnBgColor = new QPushButton("🎨 背景色を選択...", this);
+    connect(btnBgColor, &QPushButton::clicked, this, &MainWindow::onSelectBackgroundColor);
+    grpDesignLayout->addWidget(btnBgColor);
+
+
     QPushButton* btnColor = new QPushButton("🎨 文字色を選択...", this);
     connect(btnColor, &QPushButton::clicked, this, &MainWindow::onSelectTextColor);
     grpDesignLayout->addWidget(btnColor);
@@ -319,13 +351,36 @@ void MainWindow::applyCustomStyles() {
         font = this->font(); // デフォルトフォント
     }
 
+    QString bgColorStr = m_config->get("custom_bg_color", "#121214").toString();
+    QString bgPath = m_config->get("background_image_path", "").toString();
+    bool hasBgImage = !bgPath.isEmpty() && QFile::exists(bgPath);
+
+    QString paneBg;
+    QString tableBg;
+    QString tabBg;
+    QString windowBgStyle;
+
+    if (hasBgImage) {
+        paneBg = "rgba(29, 29, 34, 0.75)";
+        tableBg = "rgba(18, 18, 20, 0.7)";
+        tabBg = "rgba(18, 18, 20, 0.7)";
+        windowBgStyle = "background-color: transparent;";
+    } else {
+        paneBg = "#1D1D22";
+        tableBg = bgColorStr;
+        tabBg = bgColorStr;
+        windowBgStyle = QString("background-color: %1;").arg(bgColorStr);
+    }
+
     // Qtスタイルシートを使ったプレミアム・ダークモードと文字色の動的適用
     QString baseStyle = QString(R"(
-        QMainWindow { background-color: #121214; }
-        QTabWidget::pane { border: 1px solid #29292E; background-color: #1D1D22; top: -1px; }
-        QTabBar::tab { background-color: #121214; color: #A9A9B2; border: 1px solid #29292E; padding: 10px 20px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
-        QTabBar::tab:selected { background-color: #1D1D22; color: #FFFFFF; border-bottom-color: #1D1D22; font-weight: bold; }
+        QMainWindow { %2 }
+        QTabWidget::pane { border: 1px solid #29292E; background-color: %3; top: -1px; }
+        QTabBar::tab { background-color: %4; color: #A9A9B2; border: 1px solid #29292E; padding: 10px 20px; border-top-left-radius: 4px; border-top-right-radius: 4px; }
+        QTabBar::tab:selected { background-color: %3; color: #FFFFFF; border-bottom-color: %3; font-weight: bold; }
         
+        QTabWidget > QWidget { background: transparent; }
+
         /* QGroupBox のボーダー重なりと内部コンテンツの被りを解決 */
         QGroupBox {
             border: 1px solid #29292E;
@@ -341,7 +396,7 @@ void MainWindow::applyCustomStyles() {
             left: 10px;
             top: 6px; /* ボーダーラインの真上に綺麗に重なるよう調整 */
             padding: 0 6px;
-            background-color: #1D1D22;
+            background-color: %3;
             color: #E1E1E6;
         }
 
@@ -354,31 +409,105 @@ void MainWindow::applyCustomStyles() {
         /* 標準ダイアログ（QColorDialog/QFontDialog）への文字色漏洩を防ぐため、#centralWidget 内に限定 */
         #centralWidget QLabel { color: %1; }
         #centralWidget QCheckBox { color: %1; }
-        #centralWidget QLineEdit { background-color: #121214; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px; }
+        #centralWidget QLineEdit { background-color: %4; color: #E1E1E6; border: 1px solid #29292E; border-radius: 4px; padding: 4px; }
         #centralWidget QPushButton { border: 1px solid #29292E; border-radius: 4px; padding: 5px; color: #FFFFFF; background-color: #29292E; }
         #centralWidget QPushButton:hover { background-color: #35353B; }
-        #centralWidget QTableView { background-color: #121214; color: %1; gridline-color: #29292E; border: 1px solid #29292E; border-radius: 4px; }
-        #centralWidget QHeaderView::section { background-color: #1D1D22; color: #A9A9B2; border: 1px solid #29292E; padding: 5px; }
-    )").arg(textColorStr);
+        #centralWidget QTableView { background-color: %5; color: %1; gridline-color: #29292E; border: 1px solid #29292E; border-radius: 4px; }
+        #centralWidget QHeaderView::section { background-color: %3; color: #A9A9B2; border: 1px solid #29292E; padding: 5px; }
+    )")
+    .arg(textColorStr)
+    .arg(windowBgStyle)
+    .arg(paneBg)
+    .arg(tabBg)
+    .arg(tableBg);
 
     this->setStyleSheet(baseStyle);
     this->setFont(font);
     m_tableView->setFont(font);
 
-    // 2. 背景画像の適用
+    updateBackground();
+}
+
+void MainWindow::updateBackground() {
+    QString bgColorStr = m_config->get("custom_bg_color", "#121214").toString();
+    QColor bgColor(bgColorStr);
     QString bgPath = m_config->get("background_image_path", "").toString();
+
+    QPalette palette = this->palette();
     if (!bgPath.isEmpty() && QFile::exists(bgPath)) {
-        // ウインドウの背景として画像を設定
-        QPalette palette = this->palette();
         QPixmap pixmap(bgPath);
         if (!pixmap.isNull()) {
-            QPixmap scaledPixmap = pixmap.scaled(this->size(), Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
-            palette.setBrush(QPalette::Window, QBrush(scaledPixmap));
+            QSize size = this->size();
+            if (size.width() <= 0 || size.height() <= 0) {
+                size = QSize(900, 650);
+            }
+            QPixmap bgPixmap(size);
+            bgPixmap.fill(bgColor);
+
+            QPainter painter(&bgPixmap);
+            QPixmap scaledPixmap = pixmap.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
+            // センタリングして描画
+            int x = (size.width() - scaledPixmap.width()) / 2;
+            int y = (size.height() - scaledPixmap.height()) / 2;
+            painter.drawPixmap(x, y, scaledPixmap);
+            painter.end();
+
+            palette.setBrush(QPalette::Window, QBrush(bgPixmap));
             this->setPalette(palette);
             this->setAutoFillBackground(true);
-            Logger::logInfo(QString("Background image applied successfully: %1").arg(bgPath));
+            Logger::logInfo(QString("Background image overlaid on background color (%1) applied successfully: %2").arg(bgColorStr, bgPath));
+        } else {
+            palette.setColor(QPalette::Window, bgColor);
+            this->setPalette(palette);
+            this->setAutoFillBackground(true);
         }
+    } else {
+        palette.setColor(QPalette::Window, bgColor);
+        this->setPalette(palette);
+        this->setAutoFillBackground(true);
     }
+}
+
+void MainWindow::resizeEvent(QResizeEvent* event) {
+    QMainWindow::resizeEvent(event);
+    updateBackground();
+}
+
+void MainWindow::onSelectBackgroundColor() {
+    QColor color = QColorDialog::getColor(QColor(m_config->get("custom_bg_color", "#121214").toString()), this, "🎨 背景色を選択");
+    if (color.isValid()) {
+        m_config->set("custom_bg_color", color.name());
+        applyCustomStyles();
+    }
+}
+
+void MainWindow::onHelpClicked() {
+    QDesktopServices::openUrl(QUrl("https://github.com/BLUE000/TwitchFollowerChecker"));
+    Logger::logInfo("Opening help URL (GitHub README).");
+}
+
+void MainWindow::onAboutClicked() {
+    QString aboutText = QString(R"(
+        <h3>TwitchFollowerChecker</h3>
+        <p>バージョン: %1</p>
+        <p>Twitchの相互フォロー・片思い関係をチェックするツールです。</p>
+        <hr/>
+        <h4>ライセンス表記</h4>
+        
+        <h5>1. TwitchFollowerChecker (MIT License)</h5>
+        <p>Copyright (c) 2026 BLUE000<br/>
+        Licensed under the MIT License.</p>
+        
+        <h5>2. TransCipher Library</h5>
+        <p>This software uses TransCipher library.<br/>
+        Copyright (c) 2026 BLUE000. All rights reserved.</p>
+        
+        <h5>3. Qt6 (LGPL v3)</h5>
+        <p>This software uses Qt6 under the GNU Lesser General Public License (LGPL v3).<br/>
+        For details, please visit <a href="https://www.qt.io/">https://www.qt.io/</a>.</p>
+    )").arg(APP_VERSION_STRING);
+
+    QMessageBox::about(this, "TwitchFollowerChecker について", aboutText);
 }
 
 void MainWindow::loadSettingsToUi() {

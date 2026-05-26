@@ -70,10 +70,32 @@ private slots:
     void onSubTabChanged(int index);
 
     /**
+     * @brief システム設定画面で背景色を選択するスロット
+     */
+    void onSelectBackgroundColor();
+
+    /**
+     * @brief ヘルプボタンをクリックしたときにGitHubのREADMEを表示するスロット
+     */
+    void onHelpClicked();
+
+    /**
+     * @brief アバウトボタンをクリックしたときにライセンス等の情報を表示するスロット
+     */
+    void onAboutClicked();
+
+    /**
      * @brief テーブルのセルがクリックされた際に、URLカラムであればブラウザを起動するスロット
      * @param index クリックされたセルのインデックス
      */
     void onTableCellClicked(const QModelIndex& index);
+
+
+protected:
+    /**
+     * @brief ウィンドウリサイズ時に背景画像を綺麗に拡大縮小するイベント
+     */
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
     /**
@@ -85,6 +107,12 @@ private:
      * @brief 適用されている文字色、背景画像、カスタムフォントをGUI全体に動的に反映する
      */
     void applyCustomStyles();
+
+    /**
+     * @brief 背景画像と背景色を設定から読み込み、ウィンドウに適用する
+     */
+    void updateBackground();
+
 
     /**
      * @brief 設定情報（ON/OFF状態やカスタムAPI情報）のロードと設定画面コントロールへのバインド

@@ -1,38 +1,65 @@
 # TwitchFollowerChecker
 
-TwitchFollowerChecker is a C++ application built with Qt6 to check and track Twitch followers.
+TwitchFollowerChecker は、配信者（ストリーマー）向けの非常に使いやすい Twitch 相互フォロー・片思いチェッカーツールです。
+「自分だけがフォローしている人（片思い）」や「相手だけがフォローしてくれている人（片思い）」、「お互いにフォローし合っている人（相互）」をボタン一つで一目で確認することができます。
 
-## Features (Proposed)
-- Track follower changes (new followers, unfollowers)
-- Analyze Twitch stream follower data
-- Modern graphical user interface using Qt6
+---
 
-## Getting Started
+## 📥 インストールと起動方法
 
-### Prerequisites
-- C++17 or higher compatible compiler (MSVC, GCC, Clang)
-- [CMake](https://cmake.org/) (3.16 or higher)
-- [Qt6](https://www.qt.io/) (Core, Gui, Widgets)
+1. ダウンロードした ZIP ファイルを解凍します。
+2. 解凍したフォルダーの中にある `TwitchFollowerChecker.exe` をダブルクリックして起動します。
 
-### Local Configuration
-PC-specific environment variables and library paths should be configured in `local_config.cmake` at the root directory.
+---
 
-1. Copy `local_config.cmake.example` to `local_config.cmake`:
-   ```bash
-   cp local_config.cmake.example local_config.cmake
-   ```
-2. Open `local_config.cmake` and configure your Qt6 path.
+## 🔍 基本的な使い方
 
-### Building the Project
-```bash
-mkdir build
-cd build
-cmake ..
-cmake --build .
-```
+このツールはプログラミングの知識がなくても、簡単なステップだけで安全に利用できます。
 
-## Documentation
-Additional project documentation is located in the [doc/](doc/) directory.
+### ステップ 1: Twitch アカウントと連携する
+1. 画面上部にある **「🔑 認証ログイン」** ボタンをクリックします。
+2. 自動的にブラウザが起動し、Twitch のログインおよび連携許可画面が表示されます。
+3. 画面の指示に従って連携を許可（承認）してください。
+4. 連携が完了したら、ブラウザを閉じてアプリ画面に戻ります。連携状態が **「認証済み ✅」** になっていれば準備完了です！
 
-## License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+### ステップ 2: データの取得と確認
+1. **「📥 取得」** ボタンをクリックします。
+2. 自動的にお互いのフォロー関係がチェックされ、結果が下の表に表示されます。
+3. 表の上のタブ（「全て」「相互」「フォローのみ」「フォロワーのみ」）を切り替えることで、見たいリストだけを絞り込むことができます。
+4. 表の中の **「チャンネルURL」** をクリックすると、その人の Twitch 配信ページがブラウザで直接開きます。
+
+### ステップ 3: CSV（スプレッドシート）への出力
+- **「📥 CSV出力」** ボタンをクリックすると、取得したリストを Excel などで直接開いて管理できる CSV ファイルとして保存できます。
+- 文字化け防止対策（BOM付きUTF-8）が施されているため、Excel でそのままダブルクリックして綺麗に開くことができます。
+
+---
+
+## ⚙️ 画面のカスタマイズ方法
+
+アプリのデザインをあなたの好みに合わせて自由に変更することができます！
+
+1. 画面右上の **「⚙️ システム設定」** タブを開きます。
+2. **「画面のカスタマイズ設定」** エリアで以下のカスタマイズが可能です。
+   - **🖼️ 背景画像を選択...**：パソコン内の好きな画像（PNGやJPEG）をアプリの背景に設定できます。設定すると、どのタブ画面でもうっすらと綺麗に透けて見えるようになります。
+   - **🎨 背景色を選択...**：アプリ全体の背景色を好きな色に変更できます。背景画像と併用すると、背景色の上に画像が重なって表示されます。
+   - **🎨 文字色を選択...**：文字やメニューのカラーを好きな色に変更できます。
+   - **🔤 フォントを変更...**：お使いのパソコンにインストールされているフォントや、文字の大きさを自由に変更できます。
+3. 変更したら、一番下の **「💾 設定を保存する」** ボタンを必ずクリックしてください。次回アプリを起動したときも、同じデザインが自動的に適用されます。
+
+---
+
+## 📄 ライセンス表記 (Licenses)
+
+このソフトウェアには以下のオープンソース・ライブラリおよび第三者の著作物が含まれており、それぞれのライセンスに基づいて配布されています。
+
+### 1. TwitchFollowerChecker (MIT License)
+Copyright (c) 2026 BLUE000  
+本ソフトウェアは MIT ライセンスの下で無償で提供されています。
+
+### 2. TransCipher Library
+This software uses TransCipher library.  
+Copyright (c) 2026 BLUE000. All rights reserved.
+
+### 3. Qt6 (LGPL v3)
+This software uses Qt6 under the GNU Lesser General Public License (LGPL v3).  
+詳細は [https://www.qt.io/](https://www.qt.io/) をご参照ください。
