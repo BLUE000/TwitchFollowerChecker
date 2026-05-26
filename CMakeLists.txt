@@ -21,7 +21,7 @@ endif()
 # Twitch & TransCipher Credentials (Git-ignored configuration)
 # ==============================================================================
 if(NOT DEFINED TWITCH_DEFAULT_CLIENT_ID)
-    set(TWITCH_DEFAULT_CLIENT_ID "gp762nuuoqcoxypju8c569th9wz7q5") # Default fallback Client ID
+    set(TWITCH_DEFAULT_CLIENT_ID "aotnn8qp70c6s418ztbdauinxnf6sd") # Default fallback Client ID (BLUE000's Twitch Client ID)
 endif()
 
 if(NOT DEFINED TWITCH_DEFAULT_CLIENT_SECRET)
