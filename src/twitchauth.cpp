@@ -162,6 +162,9 @@ void TwitchAuth::handleNewConnection() {
     QTcpSocket* socket = m_tcpServer->nextPendingConnection();
     if (!socket) return;
 
+    // ソケット切断時に自動でメモリ解放する安全設計
+    connect(socket, &QTcpSocket::disconnected, socket, &QTcpSocket::deleteLater);
+
     connect(socket, &QTcpSocket::readyRead, [this, socket]() {
         QByteArray request = socket->readAll();
         QString requestStr = QString::fromUtf8(request);
@@ -175,52 +178,55 @@ void TwitchAuth::handleNewConnection() {
         
         QString path = tokens[1];
 
-        // 2. HTMLの返却
-        QTextStream out(socket);
-        out << "HTTP/1.1 200 OK\r\n";
-        out << "Content-Type: text/html; charset=utf-8\r\n";
-        out << "Connection: close\r\n\r\n";
+        // 2. HTTPレスポンスの作成と返却（QTextStreamのバッファリング遅延を回避するため、ソケットに直接書き込む）
+        QByteArray responseHeaders = "HTTP/1.1 200 OK\r\n"
+                                     "Content-Type: text/html; charset=utf-8\r\n"
+                                     "Connection: close\r\n\r\n";
+        QByteArray responseBody;
 
         if (path.startsWith("/token")) {
             // JSリダイレクトからトークンが渡ってきた場合
             QUrlQuery query(path.mid(6)); // "/token?" の後を解析
             QString token = query.queryItemValue("access_token");
             
-            // ヌル文字が混入していた場合は即座に除去（安全対策）
+            // ヌル文字が混入していた場合は即座に除去（安全対策の徹底）
             token.remove(QChar('\0'));
             token = token.trimmed();
 
             if (!token.isEmpty()) {
                 m_accessToken = token;
-                out << "<html><body><h2>ログインに成功しました！</h2><p>このウィンドウを閉じてアプリケーションに戻ってください。</p></body></html>";
+                responseBody = "<html><body><h2>ログインに成功しました！</h2><p>このウィンドウを閉じてアプリケーションに戻ってください。</p></body></html>";
                 Logger::logInfo("OAuth Access Token successfully retrieved via loopback server.");
                 emit authSuccess(m_accessToken);
             } else {
-                out << "<html><body><h2>ログイン失敗</h2><p>アクセストークンが空でした。</p></body></html>";
+                responseBody = "<html><body><h2>ログイン失敗</h2><p>アクセストークンが空でした。</p></body></html>";
                 emit authFailed("Empty access token.");
             }
-            socket->disconnectFromHost();
         } else {
             // 初回リダイレクト時 (URL Fragment '#' にトークンが含まれている)
             // ブラウザは '#' 以降をサーバーに送信しないため、HTML+JSを返却してQuery Parameterに変換して再アクセスさせる
-            out << "<html><body>"
-                << "<h2>Twitch認証を処理しています...</h2>"
-                << "<script>"
-                << "if (window.location.hash) {"
-                << "  var params = new URLSearchParams(window.location.hash.substring(1));"
-                << "  var token = params.get('access_token');"
-                << "  if (token) {"
-                << "    window.location.href = '/token?access_token=' + token;"
-                << "  } else {"
-                << "    document.body.innerHTML = '<h2>エラー: トークンが見つかりません。</h2>';"
-                << "  }"
-                << "} else {"
-                << "  document.body.innerHTML = '<h2>認証エラー: 不正なアクセスです。</h2>';"
-                << "}"
-                << "</script>"
-                << "</body></html>";
-            socket->disconnectFromHost();
+            responseBody = "<html><body>"
+                           "<h2>Twitch認証を処理しています...</h2>"
+                           "<script>"
+                           "if (window.location.hash) {"
+                           "  var params = new URLSearchParams(window.location.hash.substring(1));"
+                           "  var token = params.get('access_token');"
+                           "  if (token) {"
+                           "    window.location.href = '/token?access_token=' + token;"
+                           "  } else {"
+                           "    document.body.innerHTML = '<h2>エラー: トークンが見つかりません。</h2>';"
+                           "  }"
+                           "} else {"
+                           "  document.body.innerHTML = '<h2>認証エラー: 不正なアクセスです。</h2>';"
+                           "}"
+                           "</script>"
+                           "</body></html>";
         }
+
+        // ソケットへ書き込みと即時フラッシュを実行
+        socket->write(responseHeaders + responseBody);
+        socket->flush();
+        socket->disconnectFromHost();
     });
 }
 
