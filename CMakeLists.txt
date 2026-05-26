@@ -24,7 +24,13 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Network)
+
+# ==============================================================================
+# TransCipher Library Settings
+# ==============================================================================
+set(TRANSCIPHER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/lib/TransCipher-Dist)
+include_directories(${TRANSCIPHER_DIR}/include)
 
 # ==============================================================================
 # Source Files
@@ -34,6 +40,16 @@ set(PROJECT_SOURCES
     src/mainwindow.h
     src/mainwindow.cpp
     src/mainwindow.ui
+    src/logger.h
+    src/logger.cpp
+    src/configmanager.h
+    src/configmanager.cpp
+    src/twitchauth.h
+    src/twitchauth.cpp
+    src/twitchapiclient.h
+    src/twitchapiclient.cpp
+    src/followermodel.h
+    src/followermodel.cpp
 )
 
 # ==============================================================================
@@ -51,10 +67,23 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     APP_VERSION_STRING="${PROJECT_VERSION}"
 )
 
+# Link Qt libraries and TransCipher Import Library (.dll.a for MinGW)
 target_link_libraries(${PROJECT_NAME} PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Widgets
+    Qt6::Network
+    "${TRANSCIPHER_DIR}/lib/libTransCipher.dll.a"
+)
+
+# ==============================================================================
+# Post-Build Custom Command (Copy TransCipher.dll to Build Folder)
+# ==============================================================================
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${TRANSCIPHER_DIR}/lib/libTransCipher.dll"
+    "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
+    COMMENT "Copying libTransCipher.dll to executable directory..."
 )
 
 # Setup executable installation destination (optional, for release builds)
