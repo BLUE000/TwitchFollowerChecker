@@ -53,7 +53,7 @@ set(PROJECT_SOURCES
 )
 
 # ==============================================================================
-# Target Definitions
+# Target Definitions: Main Executable
 # ==============================================================================
 if(WIN32)
     # Use WIN32 option to prevent console window from showing behind GUI on Windows
@@ -76,14 +76,71 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     "${TRANSCIPHER_DIR}/lib/libTransCipher.dll.a"
 )
 
-# ==============================================================================
-# Post-Build Custom Command (Copy TransCipher.dll to Build Folder)
-# ==============================================================================
+# Post-Build DLL Copy for Main App
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${TRANSCIPHER_DIR}/lib/libTransCipher.dll"
     "$<TARGET_FILE_DIR:${PROJECT_NAME}>"
     COMMENT "Copying libTransCipher.dll to executable directory..."
+)
+
+# ==============================================================================
+# FetchContent for Google Test (GTest)
+# ==============================================================================
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+)
+# For MinGW/MSVC runtime compatibility
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
+
+# ==============================================================================
+# Target Definitions: Automated Test Executable
+# ==============================================================================
+set(TEST_SOURCES
+    src/test/test_main.cpp
+    src/logger.h
+    src/logger.cpp
+    src/configmanager.h
+    src/configmanager.cpp
+    src/twitchauth.h
+    src/twitchauth.cpp
+    src/twitchapiclient.h
+    src/twitchapiclient.cpp
+    src/followermodel.h
+    src/followermodel.cpp
+)
+
+add_executable(TwitchFollowerCheckerTest ${TEST_SOURCES})
+
+# Pass CMake managed version to Test C++ compile definitions
+target_compile_definitions(TwitchFollowerCheckerTest PRIVATE
+    APP_VERSION_STRING="${PROJECT_VERSION}"
+)
+
+target_include_directories(TwitchFollowerCheckerTest PRIVATE 
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# Link GTest, Qt, and TransCipher
+target_link_libraries(TwitchFollowerCheckerTest PRIVATE
+    gtest
+    gtest_main
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Network
+    "${TRANSCIPHER_DIR}/lib/libTransCipher.dll.a"
+)
+
+# Post-Build DLL Copy for Test Target
+add_custom_command(TARGET TwitchFollowerCheckerTest POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${TRANSCIPHER_DIR}/lib/libTransCipher.dll"
+    "$<TARGET_FILE_DIR:TwitchFollowerCheckerTest>"
+    COMMENT "Copying libTransCipher.dll to test directory..."
 )
 
 # Setup executable installation destination (optional, for release builds)
