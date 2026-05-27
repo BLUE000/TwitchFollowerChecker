@@ -140,7 +140,24 @@ TEST(FollowerModelTest, ModelDataMapping) {
 }
 
 // ==============================================================================
-// 5. OAuth パラメータ解析（?記号除去）の単体テスト [UT-AUTH-01]
+// 5. FollowerItem の operator== 動作検証 [UT-FIT-01]
+// ==============================================================================
+TEST(FollowerItemTest, ComparisonOperator) {
+    FollowerItem item1 { "user", "ユーザー", "相互", QDateTime::fromString("2026-05-26T21:00:00Z", Qt::ISODate), "https://twitch.tv/user" };
+    FollowerItem item2 { "user", "ユーザー", "相互", QDateTime::fromString("2026-05-26T21:00:00Z", Qt::ISODate), "https://twitch.tv/user" };
+    FollowerItem item3 { "user2", "ユーザー", "相互", QDateTime::fromString("2026-05-26T21:00:00Z", Qt::ISODate), "https://twitch.tv/user" };
+    FollowerItem item4 { "user", "ユーザー", "フォローのみ", QDateTime::fromString("2026-05-26T21:00:00Z", Qt::ISODate), "https://twitch.tv/user" };
+
+    // 同一値の比較
+    EXPECT_TRUE(item1 == item2);
+
+    // 異なる値の比較
+    EXPECT_FALSE(item1 == item3);
+    EXPECT_FALSE(item1 == item4);
+}
+
+// ==============================================================================
+// 6. OAuth パラメータ解析（?記号除去）の単体テスト [UT-AUTH-01]
 // ==============================================================================
 TEST(OAuthParserTest, ParseTokenWithLeadingQuestionMark) {
     QString rawPath = "/token?access_token=my_test_oauth_token&scope=user:read";

@@ -11,6 +11,7 @@
 #include "followermodel.h"
 #include "twitchauth.h"
 #include "twitchapiclient.h"
+#include <QTimer>
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -90,6 +91,11 @@ private slots:
      */
     void onTableCellClicked(const QModelIndex& index);
 
+    /**
+     * @brief 定期的な自動取得タイマーがタイムアウトした際のスロット
+     */
+    void onAutoFetchTimeout();
+
 
 protected:
     /**
@@ -142,6 +148,12 @@ private:
      */
     void showStatusInfo(const QString& message, int durationMs = 5000);
 
+    /**
+     * @brief Twitchからフォロワー差分データを取得し、変更があればリストを更新する
+     * @param isSilent true の場合、UIのボタン変更や開始通知を無効化し、データに変更があった場合のみ通知する
+     */
+    void fetchData(bool isSilent);
+
     Ui::MainWindow *ui;                 ///< UIデザイナー用ポインタ
     ConfigManager* m_config;            ///< 設定マネージャー
     TwitchAuth* m_auth;                 ///< Twitch認証マネージャー
@@ -158,6 +170,7 @@ private:
     QLabel* m_statusInfoLabel;          ///< ステータスバー右側の通知ラベル（改ざん表示を上書きしない）
 
     QString m_twitchToken;              ///< メモリ保持されるTwitchアクセストークン
+    QTimer* m_autoFetchTimer;           ///< 自動取得用タイマー
 };
 
 #endif // MAINWINDOW_H

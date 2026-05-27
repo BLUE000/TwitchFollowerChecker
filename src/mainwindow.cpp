@@ -69,6 +69,7 @@ MainWindow::MainWindow(QWidget *parent)
     , m_subTabWidget(nullptr)
     , m_tableView(nullptr)
     , m_statusInfoLabel(nullptr)
+    , m_autoFetchTimer(nullptr)
 {
     ui->setupUi(this);
 
@@ -100,6 +101,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     m_auth = new TwitchAuth(this);
     m_apiClient = new TwitchApiClient(this);
+
+    m_autoFetchTimer = new QTimer(this);
+    connect(m_autoFetchTimer, &QTimer::timeout, this, &MainWindow::onAutoFetchTimeout);
 
     // 3. 起動時トークン認証の実行 (キルスイッチ)
     // 開発用の local_config.cmake または user_preset で設定されたトークンがあれば検証します。
@@ -585,14 +589,30 @@ void MainWindow::onAuthSuccess(const QString& token) {
     btnLogin->setEnabled(true);
     btnRun->setEnabled(true);
 
-    showStatusInfo("✅ Twitch連携ログインに成功しました！差分チェックが実行可能です。");
+    showStatusInfo("✅ Twitch連携ログインに成功しました！自動バックグラウンド取得を開始します。");
     Logger::logInfo("OAuth Session established.");
+
+    // 初回の自動取得（裏で実行）
+    fetchData(true);
+
+    // 5分おき（300,000ミリ秒）に自動取得タイマーを起動
+    m_autoFetchTimer->start(300000);
 }
 
 void MainWindow::onCheckDifferenceClicked() {
-    btnRun->setEnabled(false);
-    btnRun->setText("処理中...");
-    Logger::logInfo("Fetching Twitch follower difference data...");
+    fetchData(false);
+}
+
+void MainWindow::fetchData(bool isSilent) {
+    if (m_twitchToken.isEmpty()) {
+        return;
+    }
+
+    if (!isSilent) {
+        btnRun->setEnabled(false);
+        btnRun->setText("処理中...");
+    }
+    Logger::logInfo(QString("Fetching Twitch follower difference data (silent: %1)...").arg(isSilent ? "true" : "false"));
 
     QList<FollowerItem> following = m_apiClient->fetchFollowing(m_twitchToken);
     QList<FollowerItem> followers = m_apiClient->fetchFollowers(m_twitchToken);
@@ -616,20 +636,45 @@ void MainWindow::onCheckDifferenceClicked() {
         }
     }
 
-    // テーブルビューへバインド
-    m_followerModel->setFollowers(resultList);
-    
-    // データ更新後に列幅をコンテンツに合わせて自動調整
-    m_tableView->resizeColumnsToContents();
+    // データの変化があるかどうかを検証
+    const QList<FollowerItem>& currentList = m_followerModel->getFollowersList();
+    bool isChanged = (currentList != resultList);
 
-    btnRun->setEnabled(true);
-    btnRun->setText("📥 取得");
+    if (isChanged) {
+        // テーブルビューへバインド
+        m_followerModel->setFollowers(resultList);
+        
+        // データ更新後に列幅をコンテンツに合わせて自動調整
+        m_tableView->resizeColumnsToContents();
+
+        // 各サブタブの件数を更新
+        updateSubTabCounts();
+
+        Logger::logInfo("Follower data changed. List view updated.");
+        if (isSilent) {
+            showStatusInfo(QString("🔄 【自動更新】データに変化がありました。合計: %1 件。").arg(resultList.size()));
+        }
+    } else {
+        Logger::logInfo("Follower data has no changes. List view update skipped.");
+    }
+
+    // CSV出力ボタンの状態は最新件数に同期
     btnExport->setEnabled(resultList.size() > 0);
 
-    // 各サブタブの件数を更新
-    updateSubTabCounts();
+    if (!isSilent) {
+        btnRun->setEnabled(true);
+        btnRun->setText("📥 取得");
+        if (isChanged) {
+            showStatusInfo(QString("✅ データの取得が完了しました！合計: %1 件。").arg(resultList.size()));
+        } else {
+            showStatusInfo("✅ データの取得が完了しました（変更なし）。");
+        }
+    }
+}
 
-    showStatusInfo(QString("✅ データの取得が完了しました！合計: %1 件。").arg(resultList.size()));
+void MainWindow::onAutoFetchTimeout() {
+    Logger::logInfo("Auto fetch timer triggered.");
+    fetchData(true);
 }
 
 void MainWindow::onExportCsvClicked() {
@@ -738,23 +783,28 @@ void MainWindow::updateSubTabsVisibility() {
 
     if (chkShowAll && chkShowAll->isChecked()) {
         m_subTabWidget->addTab("全て");
-        if (currentText == "全て") indexToSelect = currentNewIndex;
+        if (currentText.startsWith("全て")) indexToSelect = currentNewIndex;
         currentNewIndex++;
     }
     if (chkShowMutual && chkShowMutual->isChecked()) {
         m_subTabWidget->addTab("相互");
-        if (currentText == "相互") indexToSelect = currentNewIndex;
+        if (currentText.startsWith("相互")) indexToSelect = currentNewIndex;
         currentNewIndex++;
     }
     if (chkShowFollowingOnly && chkShowFollowingOnly->isChecked()) {
         m_subTabWidget->addTab("フォローのみ");
-        if (currentText == "フォローのみ") indexToSelect = currentNewIndex;
+        if (currentText.startsWith("フォローのみ")) indexToSelect = currentNewIndex;
         currentNewIndex++;
     }
     if (chkShowFollowersOnly && chkShowFollowersOnly->isChecked()) {
         m_subTabWidget->addTab("フォロワーのみ");
-        if (currentText == "フォロワーのみ") indexToSelect = currentNewIndex;
+        if (currentText.startsWith("フォロワーのみ")) indexToSelect = currentNewIndex;
         currentNewIndex++;
+    }
+
+    // 既にデータが取得されている場合は件数を再付与する
+    if (m_followerModel && !m_followerModel->getFollowersList().isEmpty()) {
+        updateSubTabCounts();
     }
 
     m_subTabWidget->blockSignals(false);

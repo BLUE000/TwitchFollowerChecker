@@ -15,6 +15,14 @@ struct FollowerItem {
     QString relationship;   ///< 関係ステータス ("相互", "フォローのみ", "フォローされているだけ")
     QDateTime followedAt;   ///< フォローされた（またはフォローした）日時
     QString channelUrl;     ///< TwitchのチャンネルURL
+
+    bool operator==(const FollowerItem& other) const {
+        return loginName == other.loginName &&
+               displayName == other.displayName &&
+               relationship == other.relationship &&
+               followedAt == other.followedAt &&
+               channelUrl == other.channelUrl;
+    }
 };
 
 /**
