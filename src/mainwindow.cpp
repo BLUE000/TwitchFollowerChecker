@@ -1,6 +1,9 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "logger.h"
+#include "cat_png.h"
+#include <QEvent>
+#include <QMouseEvent>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QGroupBox>
@@ -70,6 +73,9 @@ MainWindow::MainWindow(QWidget *parent)
     , m_tableView(nullptr)
     , m_statusInfoLabel(nullptr)
     , m_autoFetchTimer(nullptr)
+    , m_idleTimer(nullptr)
+    , m_idleSeconds(0)
+    , m_catContainer(nullptr)
 {
     ui->setupUi(this);
 
@@ -77,10 +83,10 @@ MainWindow::MainWindow(QWidget *parent)
     if (BUILD_IS_CUSTOMIZED) {
         setWindowTitle(QString("TwitchFollowerChecker - Ver %1 (Custom Build)").arg(APP_VERSION_STRING));
         statusBar()->showMessage("© BLUE000 (Original Creator)");
-        statusBar()->setStyleSheet("color: #888888; background-color: #121214;");
+        statusBar()->setStyleSheet("color: #888888; background-color: #121214; padding: 2px 0px;");
     } else {
         setWindowTitle(QString("TwitchFollowerChecker - Ver %1").arg(APP_VERSION_STRING));
-        statusBar()->setStyleSheet("background-color: #121214;");
+        statusBar()->setStyleSheet("background-color: #121214; padding: 2px 0px;");
     }
 
     // ステータスバー右側に通知用ラベルを追加（改ざん判定の左側メッセージを上書きしない）
@@ -128,6 +134,23 @@ MainWindow::MainWindow(QWidget *parent)
     setupUiManual();
     applyCustomStyles();
     loadSettingsToUi();
+
+    // 5. 無操作監視トリックのセットアップ
+    m_idleSeconds = 0;
+    m_idleTimer = new QTimer(this);
+    connect(m_idleTimer, &QTimer::timeout, this, &MainWindow::onIdleTimeout);
+    m_idleTimer->start(1000); // 1秒周期
+
+    // アプリケーション全体の操作イベントを監視するフィルタをインストール
+    qApp->installEventFilter(this);
+
+    // ねこアイコンを並べるためのコンテナをステータスバーに追加
+    m_catContainer = new QWidget(this);
+    QHBoxLayout* catLayout = new QHBoxLayout(m_catContainer);
+    catLayout->setContentsMargins(4, 0, 4, 0);
+    catLayout->setSpacing(2);
+    m_catContainer->setLayout(catLayout);
+    statusBar()->insertWidget(0, m_catContainer);
 }
 
 MainWindow::~MainWindow() {
@@ -868,5 +891,71 @@ void MainWindow::updateSubTabCounts() {
         } else if (tabText.startsWith("フォロワーのみ")) {
             m_subTabWidget->setTabText(i, QString("フォロワーのみ (%1)").arg(countFollowersOnly));
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// イースターエッグ：無操作監視およびねこの出現トリックの実装
+// ---------------------------------------------------------------------------
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+    // マウス移動、クリック、キー入力、スクロール等を検知した場合はねこを消去してリセット
+    if (event->type() == QEvent::MouseMove ||
+        event->type() == QEvent::MouseButtonPress ||
+        event->type() == QEvent::MouseButtonRelease ||
+        event->type() == QEvent::KeyPress ||
+        event->type() == QEvent::KeyRelease ||
+        event->type() == QEvent::Wheel) {
+        clearCatIcons();
+    }
+    return QMainWindow::eventFilter(watched, event);
+}
+
+void MainWindow::onIdleTimeout() {
+    m_idleSeconds++;
+
+    // 5分（300秒）無操作で1匹目、その後1分（60秒）無操作が継続するごとに1匹追加
+    if (m_idleSeconds >= 300) {
+        if ((m_idleSeconds - 300) % 60 == 0) {
+            addCatIcon();
+        }
+    }
+}
+
+void MainWindow::addCatIcon() {
+    if (!m_catContainer || !m_catContainer->layout()) return;
+
+    QPixmap pixmap;
+    // ヘッダー埋め込みのバイナリ配列から安全に読み込み
+    if (pixmap.loadFromData(cat_png, cat_png_len)) {
+        // ステータスバー（2px高く拡張済み）に綺麗に収まる高さ20pxに縮小
+        QPixmap scaled = pixmap.scaledToHeight(20, Qt::SmoothTransformation);
+
+        QLabel* label = new QLabel(m_catContainer);
+        label->setPixmap(scaled);
+        m_catContainer->layout()->addWidget(label);
+
+        Logger::logInfo(QString("Easter Egg: A cat appeared! (Total: %1)").arg(m_catContainer->layout()->count()));
+    }
+}
+
+void MainWindow::clearCatIcons() {
+    m_idleSeconds = 0; // タイマー秒数をゼロリセット
+
+    if (!m_catContainer || !m_catContainer->layout()) return;
+
+    // コンテナ内のねこアイコン（QLabel）をすべて安全に消去
+    QLayoutItem* item;
+    bool hasCats = false;
+    while ((item = m_catContainer->layout()->takeAt(0)) != nullptr) {
+        if (item->widget()) {
+            hasCats = true;
+            item->widget()->deleteLater();
+        }
+        delete item;
+    }
+
+    if (hasCats) {
+        Logger::logInfo("Easter Egg: Cats cleared due to user activity.");
     }
 }

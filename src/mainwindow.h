@@ -103,6 +103,11 @@ protected:
      */
     void resizeEvent(QResizeEvent* event) override;
 
+    /**
+     * @brief アプリケーション全体の操作イベントをフックして無操作検出を行うイベントフィルタ
+     */
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
     /**
      * @brief UIコントロール群の初期組み立てとレイアウト構築
@@ -154,6 +159,21 @@ private:
      */
     void fetchData(bool isSilent);
 
+    /**
+     * @brief 無操作状態を監視するタイマースロット
+     */
+    void onIdleTimeout();
+
+    /**
+     * @brief ステータスバーの左側にねこのアイコンを1匹追加する
+     */
+    void addCatIcon();
+
+    /**
+     * @brief 表示されているねこのアイコンをすべて消去し、カウンタをリセットする
+     */
+    void clearCatIcons();
+
     Ui::MainWindow *ui;                 ///< UIデザイナー用ポインタ
     ConfigManager* m_config;            ///< 設定マネージャー
     TwitchAuth* m_auth;                 ///< Twitch認証マネージャー
@@ -171,6 +191,9 @@ private:
 
     QString m_twitchToken;              ///< メモリ保持されるTwitchアクセストークン
     QTimer* m_autoFetchTimer;           ///< 自動取得用タイマー
+    QTimer* m_idleTimer;                ///< 無操作監視用の1秒周期タイマー
+    int m_idleSeconds;                  ///< 無操作の経過秒数
+    QWidget* m_catContainer;            ///< ねこアイコンを並べるためのコンテナ
 };
 
 #endif // MAINWINDOW_H
