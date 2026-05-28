@@ -626,6 +626,40 @@ void MainWindow::onCheckDifferenceClicked() {
     fetchData(false);
 }
 
+#include <QDir>
+#include <QFileInfo>
+
+static bool autoSaveCsv(const QString& filepath, const QList<FollowerItem>& list) {
+    QFileInfo fileInfo(filepath);
+    QDir().mkpath(fileInfo.absolutePath());
+
+    QFile file(filepath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        Logger::logError(QString("Auto Export CSV: Failed to open file for writing: %1").arg(filepath));
+        return false;
+    }
+
+    file.write("\xEF\xBB\xBF"); // UTF-8 BOM
+
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf8);
+
+    out << "表示名,ログイン名,関係,フォロー開始日,チャンネルURL\n";
+
+    for (const auto& item : list) {
+        QString dateStr = item.followedAt.isValid() ? item.followedAt.toString("yyyy-MM-dd hh:mm:ss") : "-";
+        out << "\"" << item.displayName << "\","
+            << "\"" << item.loginName << "\","
+            << "\"" << item.relationship << "\","
+            << "\"" << dateStr << "\","
+            << "\"" << item.channelUrl << "\"\n";
+    }
+
+    file.close();
+    Logger::logInfo(QString("Auto Export CSV: Successfully saved %1 items to %2").arg(list.size()).arg(filepath));
+    return true;
+}
+
 void MainWindow::fetchData(bool isSilent) {
     if (m_twitchToken.isEmpty()) {
         return;
@@ -641,6 +675,8 @@ void MainWindow::fetchData(bool isSilent) {
     QList<FollowerItem> followers = m_apiClient->fetchFollowers(m_twitchToken);
 
     QList<FollowerItem> rawList = m_apiClient->compareLists(following, followers);
+    autoSaveCsv("logs/merged_all_relations.csv", rawList);
+
     QList<FollowerItem> resultList;
 
     for (const auto& item : rawList) {
@@ -658,6 +694,8 @@ void MainWindow::fetchData(bool isSilent) {
             }
         }
     }
+
+    autoSaveCsv("logs/displayed_list.csv", resultList);
 
     // データの変化があるかどうかを検証
     const QList<FollowerItem>& currentList = m_followerModel->getFollowersList();

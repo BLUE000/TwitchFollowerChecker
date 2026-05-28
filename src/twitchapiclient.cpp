@@ -8,6 +8,8 @@
 #include <QEventLoop>
 #include <QNetworkRequest>
 #include <QNetworkReply>
+#include <QDir>
+#include <QFileInfo>
 
 TwitchApiClient::TwitchApiClient(QObject* parent)
     : QObject(parent)
@@ -86,6 +88,37 @@ void TwitchApiClient::loadStubData() {
     m_stubFollowersList.append(d_f);
 }
 
+static bool saveCsvFile(const QString& filepath, const QList<FollowerItem>& list) {
+    QFileInfo fileInfo(filepath);
+    QDir().mkpath(fileInfo.absolutePath());
+
+    QFile file(filepath);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        Logger::logError(QString("Debug CSV: Failed to open file for writing: %1").arg(filepath));
+        return false;
+    }
+
+    file.write("\xEF\xBB\xBF"); // UTF-8 BOM
+
+    QTextStream out(&file);
+    out.setEncoding(QStringConverter::Utf8);
+
+    out << "表示名,ログイン名,関係,フォロー開始日,チャンネルURL\n";
+
+    for (const auto& item : list) {
+        QString dateStr = item.followedAt.isValid() ? item.followedAt.toString("yyyy-MM-dd hh:mm:ss") : "-";
+        out << "\"" << item.displayName << "\","
+            << "\"" << item.loginName << "\","
+            << "\"" << item.relationship << "\","
+            << "\"" << dateStr << "\","
+            << "\"" << item.channelUrl << "\"\n";
+    }
+
+    file.close();
+    Logger::logInfo(QString("Debug CSV: Successfully saved %1 items to %2").arg(list.size()).arg(filepath));
+    return true;
+}
+
 static QString getResolvedClientId() {
     ConfigManager config("config");
     config.load();
@@ -127,6 +160,7 @@ QString TwitchApiClient::fetchCurrentUserId(const QString& token) {
 QList<FollowerItem> TwitchApiClient::fetchFollowing(const QString& token) {
     if (m_isStubMode) {
         Logger::logInfo(QString("Stub: Returning %1 followed channels.").arg(m_stubFollowingList.size()));
+        saveCsvFile("logs/raw_following.csv", m_stubFollowingList);
         return m_stubFollowingList;
     }
 
@@ -176,15 +210,15 @@ QList<FollowerItem> TwitchApiClient::fetchFollowing(const QString& token) {
 
         cursor = doc.value("pagination").toObject().value("cursor").toString();
         reply->deleteLater();
-    } while (!cursor.isEmpty());
-
-    Logger::logInfo(QString("Fetched %1 followed channels from Twitch API.").arg(resultList.size()));
+    } while (!cursor.isEmpty());    Logger::logInfo(QString("Fetched %1 followed channels from Twitch API.").arg(resultList.size()));
+    saveCsvFile("logs/raw_following.csv", resultList);
     return resultList;
 }
 
 QList<FollowerItem> TwitchApiClient::fetchFollowers(const QString& token) {
     if (m_isStubMode) {
         Logger::logInfo(QString("Stub: Returning %1 channel followers.").arg(m_stubFollowersList.size()));
+        saveCsvFile("logs/raw_followers.csv", m_stubFollowersList);
         return m_stubFollowersList;
     }
 
@@ -234,9 +268,8 @@ QList<FollowerItem> TwitchApiClient::fetchFollowers(const QString& token) {
 
         cursor = doc.value("pagination").toObject().value("cursor").toString();
         reply->deleteLater();
-    } while (!cursor.isEmpty());
-
-    Logger::logInfo(QString("Fetched %1 channel followers from Twitch API.").arg(resultList.size()));
+    } while (!cursor.isEmpty());    Logger::logInfo(QString("Fetched %1 channel followers from Twitch API.").arg(resultList.size()));
+    saveCsvFile("logs/raw_followers.csv", resultList);
     return resultList;
 }
 
