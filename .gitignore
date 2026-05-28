@@ -64,4 +64,7 @@ compile_commands.json
 # Release packages
 *.zip
 
-
+# Debug exports and logs
+/logs/
+/config/debug_settings.json
+/config/test_stub.json
