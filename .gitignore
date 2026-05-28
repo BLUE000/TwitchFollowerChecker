@@ -68,3 +68,6 @@ compile_commands.json
 /logs/
 /config/debug_settings.json
 /config/test_stub.json
+
+# Local pictures/assets
+/pic/
