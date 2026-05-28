@@ -84,10 +84,6 @@ TEST(TwitchApiClientTest, RelationComparisonAndClassification) {
     // 比較処理の実行
     QList<FollowerItem> comparedList = client.compareLists(following, followers);
 
-    // スタブモード等での fetchFollowing / fetchFollowers 動作確認 & CSV出力のトリガー
-    QList<FollowerItem> fetchedFollowing = client.fetchFollowing("dummy_token");
-    QList<FollowerItem> fetchedFollowers = client.fetchFollowers("dummy_token");
-
     // 件数と中身の検証
     EXPECT_EQ(comparedList.size(), 4); // UserA(片想い), UserB(相互), UserC(相互), UserD(片思われ) の合計4件
 

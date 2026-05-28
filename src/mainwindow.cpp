@@ -628,6 +628,8 @@ void MainWindow::onCheckDifferenceClicked() {
 
 #include <QDir>
 #include <QFileInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 static bool autoSaveCsv(const QString& filepath, const QList<FollowerItem>& list) {
     QFileInfo fileInfo(filepath);
@@ -675,10 +677,42 @@ void MainWindow::fetchData(bool isSilent) {
     QList<FollowerItem> followers = m_apiClient->fetchFollowers(m_twitchToken);
 
     QList<FollowerItem> rawList = m_apiClient->compareLists(following, followers);
-    autoSaveCsv("logs/merged_all_relations.csv", rawList);
+    QList<FollowerItem> resultList;
 
-    // サマリ集計とテキスト保存
-    {
+    for (const auto& item : rawList) {
+        if (item.relationship == "相互") {
+            if (chkShowMutual && chkShowMutual->isChecked()) {
+                resultList.append(item);
+            }
+        } else if (item.relationship == "フォローのみ") {
+            if (chkShowFollowingOnly && chkShowFollowingOnly->isChecked()) {
+                resultList.append(item);
+            }
+        } else if (item.relationship == "フォロワーのみ") {
+            if (chkShowFollowersOnly && chkShowFollowersOnly->isChecked()) {
+                resultList.append(item);
+            }
+        }
+    }
+
+    // デバッグ設定ファイルの読み込み (デフォルトはOFF)
+    bool isDebugExport = false;
+    QFile debugFile("config/debug_settings.json");
+    if (debugFile.open(QIODevice::ReadOnly)) {
+        QJsonDocument doc = QJsonDocument::fromJson(debugFile.readAll());
+        debugFile.close();
+        if (!doc.isNull()) {
+            isDebugExport = doc.object().value("debug_export").toBool(false);
+        }
+    }
+
+    // デバッグ設定がONの場合のみ、すべてのCSVおよびサマリTXTを出力
+    if (isDebugExport) {
+        autoSaveCsv("logs/raw_following.csv", following);
+        autoSaveCsv("logs/raw_followers.csv", followers);
+        autoSaveCsv("logs/merged_all_relations.csv", rawList);
+        autoSaveCsv("logs/displayed_list.csv", resultList);
+
         int countTotal = rawList.size();
         int countFollowingOnly = 0;
         int countFollowersOnly = 0;
@@ -719,26 +753,6 @@ void MainWindow::fetchData(bool isSilent) {
             Logger::logError(QString("Failed to open summary file for writing: %1").arg(summaryPath));
         }
     }
-
-    QList<FollowerItem> resultList;
-
-    for (const auto& item : rawList) {
-        if (item.relationship == "相互") {
-            if (chkShowMutual && chkShowMutual->isChecked()) {
-                resultList.append(item);
-            }
-        } else if (item.relationship == "フォローのみ") {
-            if (chkShowFollowingOnly && chkShowFollowingOnly->isChecked()) {
-                resultList.append(item);
-            }
-        } else if (item.relationship == "フォロワーのみ") {
-            if (chkShowFollowersOnly && chkShowFollowersOnly->isChecked()) {
-                resultList.append(item);
-            }
-        }
-    }
-
-    autoSaveCsv("logs/displayed_list.csv", resultList);
 
     // データの変化があるかどうかを検証
     const QList<FollowerItem>& currentList = m_followerModel->getFollowersList();
