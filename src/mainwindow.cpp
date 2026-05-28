@@ -24,7 +24,7 @@
 #include <QResizeEvent>
 
 #ifndef APP_VERSION_STRING
-#define APP_VERSION_STRING "1.5.0"
+#define APP_VERSION_STRING "1.5.1"
 #endif
 
 #ifndef BUILD_IS_CUSTOMIZED
