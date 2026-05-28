@@ -677,6 +677,49 @@ void MainWindow::fetchData(bool isSilent) {
     QList<FollowerItem> rawList = m_apiClient->compareLists(following, followers);
     autoSaveCsv("logs/merged_all_relations.csv", rawList);
 
+    // サマリ集計とテキスト保存
+    {
+        int countTotal = rawList.size();
+        int countFollowingOnly = 0;
+        int countFollowersOnly = 0;
+        int countMutual = 0;
+
+        for (const auto& item : rawList) {
+            if (item.relationship == "相互") {
+                countMutual++;
+            } else if (item.relationship == "フォローのみ") {
+                countFollowingOnly++;
+            } else if (item.relationship == "フォロワーのみ") {
+                countFollowersOnly++;
+            }
+        }
+
+        int countRawFollowing = following.size();
+        int countRawFollowers = followers.size();
+
+        QString summaryPath = "logs/summary.txt";
+        QFile summaryFile(summaryPath);
+        if (summaryFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            summaryFile.write("\xEF\xBB\xBF"); // UTF-8 BOM
+            QTextStream out(&summaryFile);
+            out.setEncoding(QStringConverter::Utf8);
+
+            out << "全体件数 " << countTotal << "件\n";
+            out << "フォローのみ " << countFollowingOnly << "件\n";
+            out << "フォロワーのみ " << countFollowersOnly << "件\n\n";
+
+            out << "純粋なフォローのみのリスト件数 " << countRawFollowing << "件\n";
+            out << "┗うち、相互フォロー件数 " << countMutual << "件\n";
+            out << "純粋なフォロワーのみの件数 " << countRawFollowers << "件\n";
+            out << "┗うち、相互フォローの件数 " << countMutual << "件\n";
+
+            summaryFile.close();
+            Logger::logInfo(QString("Saved summary report to %1").arg(summaryPath));
+        } else {
+            Logger::logError(QString("Failed to open summary file for writing: %1").arg(summaryPath));
+        }
+    }
+
     QList<FollowerItem> resultList;
 
     for (const auto& item : rawList) {
